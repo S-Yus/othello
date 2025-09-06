@@ -1,80 +1,301 @@
-from js import document  # type: ignore
-from pyodide.ffi import create_proxy  # type: ignore
-from src.game import EMPTY, BLACK, WHITE
+import asyncio, json
+from js import document, window, console, navigator
+from pyodide.ffi import create_proxy
+from typing import Tuple, Optional, List
+from .game import Game, BLACK, WHITE, EMPTY, coord_to_notation
+from . import ai as AI
 
-_CELL_PROXIES = []
-_BUTTON_PROXIES = []
+Coord = Tuple[int,int]
 
-def _clear_cell_proxies():
-    global _CELL_PROXIES
-    for p in _CELL_PROXIES:
+LS_KEY = "othello_advanced_save_v1"
+
+class UI:
+    def __init__(self, game: Game):
+        self.game = game
+
+        # DOM
+        self.board_el   = document.getElementById("board")
+        self.status_el  = document.getElementById("status")
+        self.eval_fill  = document.getElementById("evalFill")
+
+        self.mode_select   = document.getElementById("modeSelect")
+        self.depth_select  = document.getElementById("depthSelect")
+        self.delay_range   = document.getElementById("delayRange")
+        self.delay_value   = document.getElementById("delayValue")
+        self.hints_toggle  = document.getElementById("hintsToggle")
+        self.autosave_toggle = document.getElementById("autosaveToggle")
+
+        self.hint_btn   = document.getElementById("hintBtn")
+        self.undo_btn   = document.getElementById("undoBtn")
+        self.redo_btn   = document.getElementById("redoBtn")
+        self.pass_btn   = document.getElementById("passBtn")
+        self.reset_btn  = document.getElementById("resetBtn")
+
+        self.moves_list = document.getElementById("movesList")
+        self.copy_moves_btn = document.getElementById("copyMovesBtn")
+        self.clear_moves_btn = document.getElementById("clearMovesBtn")
+
+        # 状態
+        self.busy = False
+        self.ai_delay = int(self.delay_range.value) / 1000.0
+        self.time_limit_ms: Optional[int] = None   # depth優先。必要ならUIで拡張可能。
+
+        self._init_board_dom()
+        self._bind_events()
+
+        # 前回の状態があれば復元
+        self._try_restore()
+        self._sync_controls_from_state()
+
+    # --- 初期DOM生成 ---
+    def _init_board_dom(self):
+        # 8x8 buttons
+        for y in range(8):
+            for x in range(8):
+                btn = document.createElement("button")
+                btn.classList.add("cell")
+                btn.dataset.x = str(x)
+                btn.dataset.y = str(y)
+                btn.addEventListener("click", create_proxy(self._on_cell_click))
+                self.board_el.appendChild(btn)
+
+    # --- イベント ---
+    def _bind_events(self):
+        self.mode_select.addEventListener("change", create_proxy(self._on_mode_change))
+        self.depth_select.addEventListener("change", create_proxy(self._on_depth_change))
+        self.delay_range.addEventListener("input", create_proxy(self._on_delay_change))
+        self.hints_toggle.addEventListener("change", create_proxy(self._on_toggle_change))
+        self.autosave_toggle.addEventListener("change", create_proxy(self._on_toggle_change))
+
+        self.hint_btn.addEventListener("click", create_proxy(self._on_hint))
+        self.undo_btn.addEventListener("click", create_proxy(self._on_undo))
+        self.redo_btn.addEventListener("click", create_proxy(self._on_redo))
+        self.pass_btn.addEventListener("click", create_proxy(self._on_pass))
+        self.reset_btn.addEventListener("click", create_proxy(self._on_reset))
+
+        self.copy_moves_btn.addEventListener("click", create_proxy(self._on_copy_moves))
+        self.clear_moves_btn.addEventListener("click", create_proxy(self._on_clear_moves))
+
+        # ショートカット
+        document.addEventListener("keydown", create_proxy(self._on_keydown))
+
+    # --- 保存/復元 ---
+    def _try_restore(self):
         try:
-            p.destroy()
+            s = window.localStorage.getItem(LS_KEY)
+            if s:
+                data = json.loads(s)
+                self.game.load_dict(data)
+                AI.reset_tt()
+        except Exception as e:
+            console.warn("restore failed", e)
+
+    def _autosave(self):
+        if not self.autosave_toggle.checked: return
+        try:
+            d = self.game.to_dict()
+            window.localStorage.setItem(LS_KEY, json.dumps(d))
+        except Exception as e:
+            console.warn("autosave failed", e)
+
+    # --- UI更新 ---
+    def _sync_controls_from_state(self):
+        # モードを反映
+        for i in range(self.mode_select.options.length):
+            if self.mode_select.options.item(i).value == self.game.mode:
+                self.mode_select.selectedIndex = i; break
+        # 遅延
+        self.delay_value.textContent = f"{int(self.ai_delay*1000)}ms"
+        # ボタン活性
+        self.undo_btn.disabled = not self.game.can_undo()
+        self.redo_btn.disabled = not self.game.can_redo()
+
+    def render(self):
+        # 盤
+        for y in range(8):
+            for x in range(8):
+                idx = y*8 + x
+                cell = self.board_el.children.item(idx)
+                # clear
+                while cell.firstChild: cell.removeChild(cell.firstChild)
+                cell.classList.remove("lastmove")
+
+                v = int(self.game.board[y,x])
+                if v != EMPTY:
+                    st = document.createElement("div")
+                    st.classList.add("stone")
+                    st.classList.add("black" if v==BLACK else "white")
+                    cell.appendChild(st)
+
+        # 最終着手の枠
+        if self.game.last_move is not None:
+            lx,ly = self.game.last_move
+            self.board_el.children.item(ly*8+lx).classList.add("lastmove")
+
+        # ヒント（合法手）表示
+        if self.hints_toggle.checked:
+            for (x,y) in self.game.get_legal_moves():
+                cell = self.board_el.children.item(y*8+x)
+                dot = document.createElement("div"); dot.classList.add("hint")
+                cell.appendChild(dot)
+
+        # スコアとターン
+        sc = self.game.score()
+        turn = "黒" if self.game.current_player==BLACK else "白"
+        mode_jp = {
+            "PVP":"2人",
+            "AI_WHITE":"vs AI（白）",
+            "AI_BLACK":"vs AI（黒）",
+            "AI_VS_AI":"AI vs AI"
+        }[self.game.mode]
+        self.status_el.textContent = f"手番：{turn}｜石数 B {sc['black']} - W {sc['white']}｜モード：{mode_jp}"
+
+        # 評価バー（石数比で直感表示）
+        total = max(1, sc['black'] + sc['white'])
+        # 黒の割合を高さに（下が黒）
+        h = int(100 * sc['black'] / total)
+        self.eval_fill.style.height = f"{h}%"
+
+        # 手順表
+        self._render_moves()
+
+        # ボタン状態
+        self._sync_controls_from_state()
+
+        # 自動保存
+        self._autosave()
+
+    def _render_moves(self):
+        while self.moves_list.firstChild: self.moves_list.removeChild(self.moves_list.firstChild)
+        # 2手1組で表示
+        for i in range(0, len(self.game.move_history), 2):
+            li = document.createElement("li")
+            one = self.game.move_history[i] if i < len(self.game.move_history) else ""
+            two = self.game.move_history[i+1] if (i+1) < len(self.game.move_history) else ""
+            li.textContent = f"{(i//2)+1}. {one or '-'} {two or ''}".strip()
+            self.moves_list.appendChild(li)
+        # スクロール末尾へ
+        self.moves_list.scrollTop = self.moves_list.scrollHeight
+
+    # --- クリック系 ---
+    def _on_cell_click(self, evt):
+        if self.busy: return
+        x = int(evt.currentTarget.dataset.x); y = int(evt.currentTarget.dataset.y)
+        if self.game.make_move(x,y):
+            self.render()
+            asyncio.ensure_future(self._step_ai_loop())
+
+    def _on_pass(self, evt):
+        if self.busy: return
+        self.game.pass_turn()
+        self.render()
+        asyncio.ensure_future(self._step_ai_loop())
+
+    def _on_reset(self, evt):
+        if self.busy: return
+        self.game.reset()
+        AI.reset_tt()
+        self.render()
+        asyncio.ensure_future(self._step_ai_loop(force=True))
+
+    def _on_undo(self, evt):
+        if self.busy: return
+        steps = 2 if self.game.mode in ("AI_WHITE","AI_BLACK") else 1
+        if self.game.undo(steps):
+            self.render()
+
+    def _on_redo(self, evt):
+        if self.busy: return
+        steps = 2 if self.game.mode in ("AI_WHITE","AI_BLACK") else 1
+        if self.game.redo(steps):
+            self.render()
+
+    def _on_hint(self, evt):
+        if self.busy: return
+        # 計算だけしてハイライトを出す（最善候補にlastmove枠）
+        mv = AI.choose_move(self.game.board, self.game.current_player, int(self.depth_select.value), self.time_limit_ms)
+        if mv is None: return
+        self.game.last_move = mv
+        self.render()
+
+    def _on_mode_change(self, evt):
+        self.game.mode = str(self.mode_select.value)
+        self.render()
+        asyncio.ensure_future(self._step_ai_loop(force=True))
+
+    def _on_depth_change(self, evt):
+        # 表示のみ更新
+        self.render()
+
+    def _on_delay_change(self, evt):
+        self.ai_delay = int(self.delay_range.value)/1000.0
+        self.delay_value.textContent = f"{int(self.ai_delay*1000)}ms"
+
+    def _on_toggle_change(self, evt):
+        self.render()
+
+    def _on_copy_moves(self, evt):
+        text = " ".join(self.game.move_history)
+        try:
+            navigator.clipboard.writeText(text)
         except Exception:
-            pass
-    _CELL_PROXIES = []
+            # フォールバック
+            ta = document.createElement("textarea")
+            ta.value = text; document.body.appendChild(ta)
+            ta.select(); document.execCommand("copy")
+            document.body.removeChild(ta)
 
-def _add_cell_event(element, event_name, pyfunc):
-    proxy = create_proxy(pyfunc)
-    element.addEventListener(event_name, proxy)
-    _CELL_PROXIES.append(proxy)
+    def _on_clear_moves(self, evt):
+        # 手順自体は局面の真実なので、ここでは表示だけクリア（履歴は保持）
+        self.game.move_history.clear()
+        self.render()
 
-def _add_button_event(element, event_name, pyfunc):
-    proxy = create_proxy(pyfunc)
-    element.addEventListener(event_name, proxy)
-    _BUTTON_PROXIES.append(proxy)
+    # --- キーボード ---
+    def _on_keydown(self, e):
+        if e.repeat: return
+        key = (e.key or "").lower()
+        if key == "u": self._on_undo(e)
+        elif key == "y": self._on_redo(e)
+        elif key == "p": self._on_pass(e)
+        elif key == "n": self._on_reset(e)
+        elif key == "h": self._on_hint(e)
 
-def render_board(board, legal_moves_set, on_click):
-    _clear_cell_proxies()
+    # --- AI制御 ---
+    async def _step_ai_loop(self, force:bool=False):
+        """
+        次手番がAIなら1手進める。AI vs AIなら終局まで自動で進行。
+        """
+        if self.game.is_game_over(): return
 
-    root = document.getElementById("board")
-    root.innerHTML = ""
+        async def ai_once(ai_player:int):
+            if len(Game.legal_moves(self.game.board, ai_player)) == 0:
+                # パス
+                self.game.pass_turn(); self.render(); return
+            self.busy = True
+            try:
+                await asyncio.sleep(self.ai_delay)
+                mv = AI.choose_move(self.game.board, ai_player, int(self.depth_select.value), self.time_limit_ms)
+                if mv is not None and self.game.current_player == ai_player:
+                    self.game.make_move(mv[0], mv[1])
+                    self.render()
+            finally:
+                self.busy = False
 
-    for r in range(8):
-        for c in range(8):
-            cell = document.createElement("div")
-            cell.classList.add("cell")
-            if (r, c) in legal_moves_set:
-                cell.classList.add("legal")
+        # AI vs AI
+        if self.game.mode == "AI_VS_AI":
+            # 連続で進める
+            while not self.game.is_game_over() and self.game.mode == "AI_VS_AI":
+                ai_player = BLACK if self.game.current_player==BLACK else WHITE
+                await ai_once(ai_player)
+                await asyncio.sleep(0)  # イベントループへ制御返す
+            return
 
-            v = int(board[r, c])
-            if v != EMPTY:
-                disk = document.createElement("div")
-                disk.classList.add("disk", "black" if v == BLACK else "white")
-                cell.appendChild(disk)
+        # 片側AI
+        ai_player = None
+        if self.game.mode == "AI_WHITE": ai_player = WHITE
+        elif self.game.mode == "AI_BLACK": ai_player = BLACK
 
-            def make_handler(rr=r, cc=c):
-                def handler(evt):
-                    on_click(rr, cc)
-                return handler
+        if ai_player is None: return
+        if not force and self.game.current_player != ai_player: return
 
-            _add_cell_event(cell, "click", make_handler())
-            root.appendChild(cell)
-
-def set_status(text):
-    document.getElementById("status").innerText = text
-
-def bind_button(id_str, cb):
-    el = document.getElementById(id_str)
-    _add_button_event(el, "click", lambda evt: cb())
-
-def bind_change(id_str, cb):
-    el = document.getElementById(id_str)
-    _add_button_event(el, "change", lambda evt: cb())
-
-def set_pass_enabled(enabled: bool):
-    btn = document.getElementById("passBtn")
-    if btn:
-        btn.disabled = (not enabled)
-
-def get_mode() -> str:
-    el = document.getElementById("modeSelect")
-    return (el.value if el else "PVP").upper()
-
-
-def get_depth() -> int:
-    el = document.getElementById("depthSelect")
-    try:
-        return int(el.value)
-    except Exception:
-        return 2
+        await ai_once(ai_player)

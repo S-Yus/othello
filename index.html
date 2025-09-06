@@ -4,15 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
+  <title>Othello (PyScript • Advanced)</title>
+
+  <!-- Pagesでの相対パス崩れ対策（推奨） -->
   <base href="./">
 
-  <title>Othello (PyScript)</title>
-
-  <base href="./">
-
+  <!-- PyScript 固定版 -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
 
+  <!-- あなたのスタイル -->
   <link rel="stylesheet" href="./styles.css" />
 
   <py-config>
@@ -28,33 +29,96 @@
   </py-config>
 </head>
 <body>
-  <h1>Othello</h1>
-  <div id="app">
-    <div id="status" role="status" aria-live="polite"></div>
-    <div id="board"></div>
-
-    <div class="toolbar">
-      <label for="modeSelect">Mode:</label>
-      <select id="modeSelect">
-        <option value="PVP">2 Players (local)</option>
-        <option value="AI_WHITE" selected>vs Computer (AI = White)</option>
-        <option value="AI_BLACK">vs Computer (AI = Black)</option>
-      </select>
-
-      <label for="depthSelect">Depth:</label>
-      <select id="depthSelect">
-        <option>1</option>
-        <option>2</option>
-        <option selected>3</option>
-        <option>4</option>
-      </select>
-
-      <button id="passBtn">Pass</button>
-      <button id="resetBtn">Reset</button>
+  <header class="topbar">
+    <h1>Othello</h1>
+    <div class="badges">
+      <span class="badge">PyScript</span>
+      <span class="badge">Alpha–Beta + TT</span>
     </div>
-  </div>
+  </header>
 
-  <!-- エントリポイントは main.py だけ -->
+  <main class="layout">
+    <!-- 左：盤と評価バー -->
+    <section class="board-wrap">
+      <div class="evalbar">
+        <div id="evalFill"></div>
+        <div class="evallabels">
+          <span>白</span><span>黒</span>
+        </div>
+      </div>
+      <div id="board" class="board" aria-label="Othello board"></div>
+    </section>
+
+    <!-- 右：コントロール／手順表 -->
+    <aside class="side">
+      <div id="status" class="status" role="status" aria-live="polite">Loading…</div>
+
+      <div class="card">
+        <div class="row">
+          <label for="modeSelect">対戦モード</label>
+          <select id="modeSelect">
+            <option value="PVP">ローカル対戦（2人）</option>
+            <option value="AI_WHITE" selected>vs AI（AI＝白）</option>
+            <option value="AI_BLACK">vs AI（AI＝黒）</option>
+            <option value="AI_VS_AI">AI vs AI（観戦）</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="depthSelect">思考深さ</label>
+          <select id="depthSelect">
+            <option>2</option>
+            <option>3</option>
+            <option selected>4</option>
+            <option>5</option>
+            <option>6</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="delayRange">AI手の遅延</label>
+          <input id="delayRange" type="range" min="0" max="1000" step="50" value="350">
+          <span id="delayValue">350ms</span>
+        </div>
+
+        <div class="row toggles">
+          <label><input id="hintsToggle" type="checkbox" checked> 合法手のヒント</label>
+          <label><input id="autosaveToggle" type="checkbox" checked> 自動保存</label>
+        </div>
+
+        <div class="buttons">
+          <button id="hintBtn" title="最善手を表示（H）">Hint</button>
+          <button id="undoBtn" title="1手戻る（U）" disabled>Undo</button>
+          <button id="redoBtn" title="やり直し（Y）" disabled>Redo</button>
+          <button id="passBtn" title="パス（P）">Pass</button>
+          <button id="resetBtn" class="danger" title="新局（N）">New</button>
+        </div>
+
+        <p class="help">
+          ⌨️ ショートカット：
+          <code>U</code>=Undo / <code>Y</code>=Redo /
+          <code>P</code>=Pass / <code>N</code>=New / <code>H</code>=Hint
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="row spread">
+          <strong>手順表</strong>
+          <div class="moves-actions">
+            <button id="copyMovesBtn" title="手順をコピー">Copy</button>
+            <button id="clearMovesBtn" title="手順をクリア">Clear</button>
+          </div>
+        </div>
+        <ol id="movesList" class="moves"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <small>© Your Name. MIT License.</small>
+  </footer>
+
+  <!-- エントリポイント -->
   <py-script src="src/main.py"></py-script>
 </body>
 </html>
