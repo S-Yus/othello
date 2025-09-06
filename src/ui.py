@@ -3,7 +3,7 @@ from js import document, window, console, navigator
 from pyodide.ffi import create_proxy
 from typing import Tuple, Optional, List
 from src.game import Game, BLACK, WHITE, EMPTY, coord_to_notation
-from src import ai as AI  # ← 相対ではなく絶対に変更
+from src import ai as AI
 
 Coord = Tuple[int,int]
 
@@ -17,6 +17,9 @@ class UI:
         self.board_el   = document.getElementById("board")
         self.status_el  = document.getElementById("status")
         self.eval_fill  = document.getElementById("evalFill")
+        # ★ 追加：バー上の数値
+        self.white_count_el = document.getElementById("whiteCount")
+        self.black_count_el = document.getElementById("blackCount")
 
         self.mode_select   = document.getElementById("modeSelect")
         self.depth_select  = document.getElementById("depthSelect")
@@ -102,6 +105,7 @@ class UI:
         self.redo_btn.disabled = not self.game.can_redo()
 
     def render(self):
+        # 盤
         for y in range(8):
             for x in range(8):
                 idx = y*8 + x
@@ -120,12 +124,14 @@ class UI:
             lx,ly = self.game.last_move
             self.board_el.children.item(ly*8+lx).classList.add("lastmove")
 
+        # ヒント
         if self.hints_toggle.checked:
             for (x,y) in self.game.get_legal_moves():
                 cell = self.board_el.children.item(y*8+x)
                 dot = document.createElement("div"); dot.classList.add("hint")
                 cell.appendChild(dot)
 
+        # ステータスと評価バー + ★ 数字更新
         sc = self.game.score()
         turn = "黒" if self.game.current_player==BLACK else "白"
         mode_jp = {
@@ -139,6 +145,10 @@ class UI:
         total = max(1, sc['black'] + sc['white'])
         h = int(100 * sc['black'] / total)
         self.eval_fill.style.height = f"{h}%"
+
+        # ★ バー上の数値（白・黒）を更新
+        self.white_count_el.textContent = str(sc['white'])
+        self.black_count_el.textContent = str(sc['black'])
 
         self._render_moves()
         self._sync_controls_from_state()

@@ -10,16 +10,10 @@
   <!-- GitHub Pages での相対パス崩れ対策 -->
   <base href="./">
 
-  <!-- ✅ 内蔵ファビコン（データURI・SVG）。404を防止 -->
+  <!-- ✅ 内蔵ファビコン（404防止） -->
   <link rel="icon" type="image/svg+xml"
         href='data:image/svg+xml;utf8,
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-          <defs>
-            <linearGradient id="g" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0" stop-color="%230e0f11"/>
-              <stop offset="1" stop-color="%23e9eef3"/>
-            </linearGradient>
-          </defs>
           <rect width="64" height="64" rx="12" ry="12" fill="%232f7d32"/>
           <circle cx="22" cy="32" r="14" fill="%230e0f11"/>
           <circle cx="42" cy="32" r="14" fill="%23e9eef3" stroke="%230e0f11" stroke-width="1"/>
@@ -58,8 +52,16 @@
     <section class="board-wrap">
       <div class="evalbar">
         <div id="evalFill"></div>
+        <!-- ★ 数字付きラベルを追加 -->
         <div class="evallabels">
-          <span>白</span><span>黒</span>
+          <div class="label top">
+            <span>白</span>
+            <span id="whiteCount" class="count white">2</span>
+          </div>
+          <div class="label bottom">
+            <span id="blackCount" class="count black">2</span>
+            <span>黒</span>
+          </div>
         </div>
       </div>
       <div id="board" class="board" aria-label="Othello board"></div>
@@ -74,14 +76,14 @@
           <label for="modeSelect">対戦モード</label>
           <select id="modeSelect">
             <option value="PVP">ローカル対戦（2人）</option>
-            <option value="AI_WHITE" selected>vs AI（白＝後手）</option>
-            <option value="AI_BLACK">vs AI（黒＝先手）</option>
+            <option value="AI_WHITE" selected>vs AI（AI＝白）</option>
+            <option value="AI_BLACK">vs AI（AI＝黒）</option>
             <option value="AI_VS_AI">AI vs AI（観戦）</option>
           </select>
         </div>
 
         <div class="row">
-          <label for="depthSelect">思考の深さ</label>
+          <label for="depthSelect">思考深さ</label>
           <select id="depthSelect">
             <option>2</option>
             <option>3</option>
@@ -131,7 +133,7 @@
   </main>
 
   <footer class="foot">
-    <small>All rights belong to Yusei.</small>
+    <small>© Your Name. MIT License.</small>
   </footer>
 
   <!-- エントリポイント -->

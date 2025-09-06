@@ -13,8 +13,8 @@
 
   /* 盤まわり（デスクトップのデフォルト） */
   --gap:         6px;
-  --cell-size:   60px; /* 8*60 + 9*6 = 534px が盤の外枠幅 */
-  --board-size:  calc(8*var(--cell-size) + 9*var(--gap)); /* 8cells + 7gaps + 左右padding(=2*gap) */
+  --cell-size:   60px; /* 8*60 + 9*6 = 534px */
+  --board-size:  calc(8*var(--cell-size) + 9*var(--gap));
 }
 
 *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent }
@@ -70,7 +70,7 @@ body{
   border: 1px solid rgba(255,255,255,.08);
   cursor: pointer; outline: none;
   transition: transform .05s ease;
-  min-width: 44px; min-height: 44px; /* タップ目安 */
+  min-width: 44px; min-height: 44px;
 }
 .cell:active{ transform: translateY(1px) }
 .cell:focus-visible{ box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 40%, transparent) }
@@ -97,7 +97,7 @@ body{
   outline-offset: -3px;
 }
 
-/* ========= 評価バー（縦のまま・モバイルでもOK） ========= */
+/* ========= 評価バー ========= */
 .evalbar{
   --eval-w: 18px;
   position:relative; width: var(--eval-w);
@@ -110,10 +110,22 @@ body{
   background: linear-gradient(to top, #0e0f11, #4ade80);
   transition: height .2s ease;
 }
+
+/* ★ 数字ラベル（トップ=白、ボトム=黒） */
 .evallabels{
-  position:absolute; inset: 6px 0; display:flex; flex-direction:column; justify-content:space-between; align-items:center; pointer-events:none;
+  position:absolute; inset: 6px 0;
+  display:flex; flex-direction:column; justify-content:space-between; align-items:center;
+  pointer-events:none; /* バー上の操作を妨げない */
   color: #fff; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,.6);
 }
+.evallabels .label{ display:flex; align-items:center; gap:6px; }
+.count{
+  pointer-events:auto; /* 数字選択などを許可 */
+  padding: 2px 6px; border-radius: 999px; font-weight: 700; font-size: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4);
+}
+.count.white{ background:#e9eef3; color:#0e0f11; }
+.count.black{ background:#0e0f11; color:#e9eef3; }
 
 /* ========= 右サイド ========= */
 .side{ display:flex; flex-direction:column; gap:14px; }
@@ -143,7 +155,7 @@ button{
   color: var(--text); cursor:pointer; font-weight:600;
   border:1px solid color-mix(in oklab, var(--accent) 35%, transparent);
   transition: transform .05s ease, background .2s ease;
-  min-height: 44px; /* タップ目安 */
+  min-height: 44px;
 }
 button:hover{ transform: translateY(-1px) }
 button:disabled{ opacity:.5; cursor:not-allowed; transform:none }
@@ -163,11 +175,9 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 .foot{ text-align:center; padding: 20px 10px; color: var(--muted) }
 
 /* ========= スマホ最適化 ========= */
-/* 盤サイズを画面幅基準に可変。縦の評価バーはそのまま横に配置。 */
 @media (max-width: 720px){
   :root{
     --gap: 4px;
-    /* 盤外枠幅：画面幅の92%を上限に。左の評価バー(約26px) + 余白を見込んでちょうどいいサイズに。 */
     --board-size: min(92vw, 480px);
     --cell-size: calc((var(--board-size) - 9*var(--gap)) / 8);
   }
@@ -182,22 +192,17 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
   .moves{ max-height: 180px; }
 }
 
-/* ごく小さい端末対策（幅 <= 420px） */
 @media (max-width: 420px){
-  :root{
-    --board-size: min(94vw, 420px);
-  }
+  :root{ --board-size: min(94vw, 420px); }
   .row label{ font-size: 13px; }
   .help{ font-size: 12px; }
   .topbar{ padding: 10px 12px; }
   .status{ font-size: 14px; }
   .badge{ font-size: 11px; }
   .row select, .row input[type="range"]{ width: 140px; }
-  .buttons{ grid-template-columns: 1fr; } /* ボタン1列 */
+  .buttons{ grid-template-columns: 1fr; }
 }
 
-/* 超狭い端末での安全策（幅 <= 360px）：必要なら評価バーを上に回す場合はここで調整
-   ※ JS側が高さ%でコントロールしているため、評価バーは縦のままにしています。 */
 @media (max-width: 360px){
   .board-wrap{ gap:6px; }
 }
