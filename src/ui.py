@@ -2,8 +2,8 @@ import asyncio, json
 from js import document, window, console, navigator
 from pyodide.ffi import create_proxy
 from typing import Tuple, Optional, List
-from .game import Game, BLACK, WHITE, EMPTY, coord_to_notation
-from . import ai as AI
+from src.game import Game, BLACK, WHITE, EMPTY, coord_to_notation
+from src import ai as AI  # ← 相対ではなく絶対に変更
 
 Coord = Tuple[int,int]
 
@@ -38,7 +38,7 @@ class UI:
         # 状態
         self.busy = False
         self.ai_delay = int(self.delay_range.value) / 1000.0
-        self.time_limit_ms: Optional[int] = None   # depth優先。必要ならUIで拡張可能。
+        self.time_limit_ms: Optional[int] = None
 
         self._init_board_dom()
         self._bind_events()
@@ -47,9 +47,7 @@ class UI:
         self._try_restore()
         self._sync_controls_from_state()
 
-    # --- 初期DOM生成 ---
     def _init_board_dom(self):
-        # 8x8 buttons
         for y in range(8):
             for x in range(8):
                 btn = document.createElement("button")
@@ -59,7 +57,6 @@ class UI:
                 btn.addEventListener("click", create_proxy(self._on_cell_click))
                 self.board_el.appendChild(btn)
 
-    # --- イベント ---
     def _bind_events(self):
         self.mode_select.addEventListener("change", create_proxy(self._on_mode_change))
         self.depth_select.addEventListener("change", create_proxy(self._on_depth_change))
@@ -76,10 +73,8 @@ class UI:
         self.copy_moves_btn.addEventListener("click", create_proxy(self._on_copy_moves))
         self.clear_moves_btn.addEventListener("click", create_proxy(self._on_clear_moves))
 
-        # ショートカット
         document.addEventListener("keydown", create_proxy(self._on_keydown))
 
-    # --- 保存/復元 ---
     def _try_restore(self):
         try:
             s = window.localStorage.getItem(LS_KEY)
@@ -98,25 +93,19 @@ class UI:
         except Exception as e:
             console.warn("autosave failed", e)
 
-    # --- UI更新 ---
     def _sync_controls_from_state(self):
-        # モードを反映
         for i in range(self.mode_select.options.length):
             if self.mode_select.options.item(i).value == self.game.mode:
                 self.mode_select.selectedIndex = i; break
-        # 遅延
         self.delay_value.textContent = f"{int(self.ai_delay*1000)}ms"
-        # ボタン活性
         self.undo_btn.disabled = not self.game.can_undo()
         self.redo_btn.disabled = not self.game.can_redo()
 
     def render(self):
-        # 盤
         for y in range(8):
             for x in range(8):
                 idx = y*8 + x
                 cell = self.board_el.children.item(idx)
-                # clear
                 while cell.firstChild: cell.removeChild(cell.firstChild)
                 cell.classList.remove("lastmove")
 
@@ -127,19 +116,16 @@ class UI:
                     st.classList.add("black" if v==BLACK else "white")
                     cell.appendChild(st)
 
-        # 最終着手の枠
         if self.game.last_move is not None:
             lx,ly = self.game.last_move
             self.board_el.children.item(ly*8+lx).classList.add("lastmove")
 
-        # ヒント（合法手）表示
         if self.hints_toggle.checked:
             for (x,y) in self.game.get_legal_moves():
                 cell = self.board_el.children.item(y*8+x)
                 dot = document.createElement("div"); dot.classList.add("hint")
                 cell.appendChild(dot)
 
-        # スコアとターン
         sc = self.game.score()
         turn = "黒" if self.game.current_player==BLACK else "白"
         mode_jp = {
@@ -150,34 +136,24 @@ class UI:
         }[self.game.mode]
         self.status_el.textContent = f"手番：{turn}｜石数 B {sc['black']} - W {sc['white']}｜モード：{mode_jp}"
 
-        # 評価バー（石数比で直感表示）
         total = max(1, sc['black'] + sc['white'])
-        # 黒の割合を高さに（下が黒）
         h = int(100 * sc['black'] / total)
         self.eval_fill.style.height = f"{h}%"
 
-        # 手順表
         self._render_moves()
-
-        # ボタン状態
         self._sync_controls_from_state()
-
-        # 自動保存
         self._autosave()
 
     def _render_moves(self):
         while self.moves_list.firstChild: self.moves_list.removeChild(self.moves_list.firstChild)
-        # 2手1組で表示
         for i in range(0, len(self.game.move_history), 2):
             li = document.createElement("li")
             one = self.game.move_history[i] if i < len(self.game.move_history) else ""
             two = self.game.move_history[i+1] if (i+1) < len(self.game.move_history) else ""
             li.textContent = f"{(i//2)+1}. {one or '-'} {two or ''}".strip()
             self.moves_list.appendChild(li)
-        # スクロール末尾へ
         self.moves_list.scrollTop = self.moves_list.scrollHeight
 
-    # --- クリック系 ---
     def _on_cell_click(self, evt):
         if self.busy: return
         x = int(evt.currentTarget.dataset.x); y = int(evt.currentTarget.dataset.y)
@@ -212,7 +188,6 @@ class UI:
 
     def _on_hint(self, evt):
         if self.busy: return
-        # 計算だけしてハイライトを出す（最善候補にlastmove枠）
         mv = AI.choose_move(self.game.board, self.game.current_player, int(self.depth_select.value), self.time_limit_ms)
         if mv is None: return
         self.game.last_move = mv
@@ -224,7 +199,6 @@ class UI:
         asyncio.ensure_future(self._step_ai_loop(force=True))
 
     def _on_depth_change(self, evt):
-        # 表示のみ更新
         self.render()
 
     def _on_delay_change(self, evt):
@@ -239,18 +213,15 @@ class UI:
         try:
             navigator.clipboard.writeText(text)
         except Exception:
-            # フォールバック
             ta = document.createElement("textarea")
             ta.value = text; document.body.appendChild(ta)
             ta.select(); document.execCommand("copy")
             document.body.removeChild(ta)
 
     def _on_clear_moves(self, evt):
-        # 手順自体は局面の真実なので、ここでは表示だけクリア（履歴は保持）
         self.game.move_history.clear()
         self.render()
 
-    # --- キーボード ---
     def _on_keydown(self, e):
         if e.repeat: return
         key = (e.key or "").lower()
@@ -260,16 +231,11 @@ class UI:
         elif key == "n": self._on_reset(e)
         elif key == "h": self._on_hint(e)
 
-    # --- AI制御 ---
     async def _step_ai_loop(self, force:bool=False):
-        """
-        次手番がAIなら1手進める。AI vs AIなら終局まで自動で進行。
-        """
         if self.game.is_game_over(): return
 
         async def ai_once(ai_player:int):
             if len(Game.legal_moves(self.game.board, ai_player)) == 0:
-                # パス
                 self.game.pass_turn(); self.render(); return
             self.busy = True
             try:
@@ -281,16 +247,13 @@ class UI:
             finally:
                 self.busy = False
 
-        # AI vs AI
         if self.game.mode == "AI_VS_AI":
-            # 連続で進める
             while not self.game.is_game_over() and self.game.mode == "AI_VS_AI":
                 ai_player = BLACK if self.game.current_player==BLACK else WHITE
                 await ai_once(ai_player)
-                await asyncio.sleep(0)  # イベントループへ制御返す
+                await asyncio.sleep(0)
             return
 
-        # 片側AI
         ai_player = None
         if self.game.mode == "AI_WHITE": ai_player = WHITE
         elif self.game.mode == "AI_BLACK": ai_player = BLACK

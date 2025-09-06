@@ -1,7 +1,8 @@
-from .game import Game
-from .ui import UI
+from src.game import Game
+from src.ui import UI
 
-game = Game(mode="AI_WHITE")  # 初期モード
+# 起動
+game = Game(mode="AI_WHITE")  # 初期モードは必要に応じて変更
 ui = UI(game)
 ui.render()
 
