@@ -4,10 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#2f7d32" />
   <title>Othello (PyScript • Advanced)</title>
 
-  <!-- Pagesでの相対パス崩れ対策（推奨） -->
+  <!-- GitHub Pages での相対パス崩れ対策 -->
   <base href="./">
+
+  <!-- ✅ 内蔵ファビコン（データURI・SVG）。404を防止 -->
+  <link rel="icon" type="image/svg+xml"
+        href='data:image/svg+xml;utf8,
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+          <defs>
+            <linearGradient id="g" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0" stop-color="%230e0f11"/>
+              <stop offset="1" stop-color="%23e9eef3"/>
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="12" ry="12" fill="%232f7d32"/>
+          <circle cx="22" cy="32" r="14" fill="%230e0f11"/>
+          <circle cx="42" cy="32" r="14" fill="%23e9eef3" stroke="%230e0f11" stroke-width="1"/>
+        </svg>'>
 
   <!-- PyScript 固定版 -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css" />
