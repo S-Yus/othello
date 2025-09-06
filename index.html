@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <base href="./">
+
+  <title>Othello (PyScript)</title>
+
+  <base href="./">
+
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css" />
+  <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
+
+  <link rel="stylesheet" href="./styles.css" />
+
+  <py-config>
+    packages = ["numpy"]
+    [[fetch]]
+    files = [
+      "src/__init__.py",
+      "src/main.py",
+      "src/game.py",
+      "src/ui.py",
+      "src/ai.py"
+    ]
+  </py-config>
+</head>
+<body>
+  <h1>Othello</h1>
+  <div id="app">
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="board"></div>
+
+    <div class="toolbar">
+      <label for="modeSelect">Mode:</label>
+      <select id="modeSelect">
+        <option value="PVP">2 Players (local)</option>
+        <option value="AI_WHITE" selected>vs Computer (AI = White)</option>
+        <option value="AI_BLACK">vs Computer (AI = Black)</option>
+      </select>
+
+      <label for="depthSelect">Depth:</label>
+      <select id="depthSelect">
+        <option>1</option>
+        <option>2</option>
+        <option selected>3</option>
+        <option>4</option>
+      </select>
+
+      <button id="passBtn">Pass</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+  </div>
+
+  <!-- エントリポイントは main.py だけ -->
+  <py-script src="src/main.py"></py-script>
+</body>
+</html>

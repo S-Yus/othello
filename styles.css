@@ -1,0 +1,54 @@
+#board {
+  display: inline-grid;
+  grid-template-columns: repeat(8, 48px);
+  gap: 2px;
+}
+
+.cell {
+  width: 48px;
+  height: 48px;
+  background: #0a8a2a;
+  position: relative;
+  cursor: pointer;
+}
+
+.cell.legal {
+  box-shadow: inset 0 0 0 4px rgba(255,255,255,0.7);
+}
+
+.cell.legal:hover {
+  box-shadow: inset 0 0 0 6px rgba(255,255,255,0.9);
+}
+
+.hint { 
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255,255,255,0.85);
+}
+
+.disk {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+}
+
+.disk.black { background: #111; }
+.disk.white { background: #eee; border: 1px solid #888; }
+
+.toolbar { margin-top: 8px; }
+
+.toolbar { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar label { display: inline-flex; gap: 4px; align-items: center; }
+
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
