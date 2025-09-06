@@ -34,7 +34,7 @@ def refresh():
         ui.set_status(f"Game Over — Black {b} : White {w}")
     else:
         turn = "Black" if player == BLACK else "White"
-        thinking_note = " — Computer thinking..." if _ai_to_move() and _thinking else ""
+        thinking_note = " — Thinking..." if _ai_to_move() and _thinking else ""
         ui.set_status(f"Turn: {turn} — Black {b} : White {w}{thinking_note}")
 
     ui.render_board(board, legal, on_cell_click)
