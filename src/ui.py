@@ -1,25 +1,21 @@
 import asyncio, json
 from js import document, window, console, navigator
 from pyodide.ffi import create_proxy
-from typing import Tuple, Optional, List
-from src.game import Game, BLACK, WHITE, EMPTY, coord_to_notation
+from typing import Tuple, Optional
+from src.game import Game, BLACK, WHITE, EMPTY
 from src import ai as AI
 
 Coord = Tuple[int,int]
-
 LS_KEY = "othello_advanced_save_v1"
 
 class UI:
     def __init__(self, game: Game):
         self.game = game
 
-        # DOM
+        # --- DOM（固定要素） ---
         self.board_el   = document.getElementById("board")
         self.status_el  = document.getElementById("status")
         self.eval_fill  = document.getElementById("evalFill")
-        # ★ 追加：バー上の数値
-        self.white_count_el = document.getElementById("whiteCount")
-        self.black_count_el = document.getElementById("blackCount")
 
         self.mode_select   = document.getElementById("modeSelect")
         self.depth_select  = document.getElementById("depthSelect")
@@ -50,6 +46,7 @@ class UI:
         self._try_restore()
         self._sync_controls_from_state()
 
+    # ---------------- 初期DOM ----------------
     def _init_board_dom(self):
         for y in range(8):
             for x in range(8):
@@ -60,6 +57,7 @@ class UI:
                 btn.addEventListener("click", create_proxy(self._on_cell_click))
                 self.board_el.appendChild(btn)
 
+    # ---------------- イベント ----------------
     def _bind_events(self):
         self.mode_select.addEventListener("change", create_proxy(self._on_mode_change))
         self.depth_select.addEventListener("change", create_proxy(self._on_depth_change))
@@ -78,6 +76,7 @@ class UI:
 
         document.addEventListener("keydown", create_proxy(self._on_keydown))
 
+    # ---------------- 保存/復元 ----------------
     def _try_restore(self):
         try:
             s = window.localStorage.getItem(LS_KEY)
@@ -96,6 +95,7 @@ class UI:
         except Exception as e:
             console.warn("autosave failed", e)
 
+    # ---------------- 共通UI更新 ----------------
     def _sync_controls_from_state(self):
         for i in range(self.mode_select.options.length):
             if self.mode_select.options.item(i).value == self.game.mode:
@@ -105,7 +105,7 @@ class UI:
         self.redo_btn.disabled = not self.game.can_redo()
 
     def render(self):
-        # 盤
+        # 盤の描画
         for y in range(8):
             for x in range(8):
                 idx = y*8 + x
@@ -124,14 +124,14 @@ class UI:
             lx,ly = self.game.last_move
             self.board_el.children.item(ly*8+lx).classList.add("lastmove")
 
-        # ヒント
+        # 合法手ヒント
         if self.hints_toggle.checked:
             for (x,y) in self.game.get_legal_moves():
                 cell = self.board_el.children.item(y*8+x)
                 dot = document.createElement("div"); dot.classList.add("hint")
                 cell.appendChild(dot)
 
-        # ステータスと評価バー + ★ 数字更新
+        # スコア・評価バー
         sc = self.game.score()
         turn = "黒" if self.game.current_player==BLACK else "白"
         mode_jp = {
@@ -146,12 +146,19 @@ class UI:
         h = int(100 * sc['black'] / total)
         self.eval_fill.style.height = f"{h}%"
 
-        # ★ バー上の数値（白・黒）を更新
-        self.white_count_el.textContent = str(sc['white'])
-        self.black_count_el.textContent = str(sc['black'])
+        # ★ 数字（都度DOMを取り直して確実に更新）
+        white_count_el = document.getElementById("whiteCount")
+        black_count_el = document.getElementById("blackCount")
+        if white_count_el is not None:
+            white_count_el.textContent = str(sc['white'])
+        if black_count_el is not None:
+            black_count_el.textContent = str(sc['black'])
 
+        # 手順
         self._render_moves()
+        # ボタン等
         self._sync_controls_from_state()
+        # 自動保存
         self._autosave()
 
     def _render_moves(self):
@@ -164,6 +171,7 @@ class UI:
             self.moves_list.appendChild(li)
         self.moves_list.scrollTop = self.moves_list.scrollHeight
 
+    # ---------------- ハンドラ ----------------
     def _on_cell_click(self, evt):
         if self.busy: return
         x = int(evt.currentTarget.dataset.x); y = int(evt.currentTarget.dataset.y)
@@ -241,6 +249,7 @@ class UI:
         elif key == "n": self._on_reset(e)
         elif key == "h": self._on_hint(e)
 
+    # ---------------- AI制御 ----------------
     async def _step_ai_loop(self, force:bool=False):
         if self.game.is_game_over(): return
 
