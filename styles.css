@@ -11,8 +11,8 @@
   --board-green: #2f7d32;
   --board-dark:  #2a6b2c;
 
-  --eval-w:      52px;   /* 評価バー幅 */
-  --layout-hpad: 18px;   /* レイアウト左右余白 */
+  --eval-w:      52px;   /* デスクトップ：縦バーの幅 */
+  --layout-hpad: 18px;
 
   /* 盤サイズ（デスクトップ初期値：モバイルで再計算） */
   --gap:         6px;
@@ -55,6 +55,7 @@ body{
   }
 }
 
+/* 盤＋バーの並び（PCは横並び、スマホは縦積み） */
 .board-wrap{
   display:flex; gap:14px; align-items:flex-start; justify-content:center;
 }
@@ -62,7 +63,7 @@ body{
 /* ========= 盤とラッパ ========= */
 .board-box{ position: relative; width: max-content; height: max-content; }
 
-/* ★ 盤は正方形固定＋子要素を角丸でクリップ */
+/* 盤は常に正方形 */
 .board{
   width: var(--board-size);
   height: var(--board-size);
@@ -73,14 +74,13 @@ body{
   padding: var(--gap);
   background: var(--board-green);
   border-radius: 14px;
-  overflow: hidden;           /* ← これでマスや影を角丸内に収める */
+  overflow: hidden;
   background-clip: padding-box;
-  isolation: isolate;         /* Safari で影がにじむのを防止 */
+  isolation: isolate;
   box-shadow: inset 0 8px 32px rgba(0,0,0,.25), 0 14px 30px rgba(0,0,0,.15);
   touch-action: manipulation;
 }
 
-/* マスはトラックにストレッチ（サイズを明示しない） */
 .cell{
   position: relative;
   background: var(--board-dark);
@@ -93,10 +93,8 @@ body{
 .cell:active{ transform: translateY(1px) }
 .cell:focus-visible{ box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 40%, transparent) }
 
-/* 石はセル内に収まるよう余白を自動調整（小画面でのはみ出し防止） */
 .stone{
-  position:absolute;
-  inset: clamp(4px, calc(var(--gap) + 2px), 10px); /* ← 端末に応じて適切な余白 */
+  position:absolute; inset: clamp(4px, calc(var(--gap) + 2px), 10px);
   border-radius:50%;
   box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 2px 5px rgba(255,255,255,.18);
   transform: scale(.9); opacity: 0; animation: pop .12s ease forwards;
@@ -113,25 +111,26 @@ body{
 }
 .lastmove{ outline: 3px solid color-mix(in oklab, var(--accent-2) 60%, transparent); outline-offset: -3px; }
 
-/* ========= 評価バー（白/黒2色＋枠線） ========= */
+/* ========= 評価バー（PC：縦／スマホ：横） ========= */
+/* PC（縦）：左側に配置 */
 .evalbar{
   position:relative; width: var(--eval-w);
   height: var(--board-size);
   border-radius: 10px; overflow:hidden;
-  background: #ffffff; /* 上が白 */
+  background: #ffffff;/* 上が白 */
   border: 1px solid color-mix(in oklab, var(--text) 30%, transparent);
   box-shadow: inset 0 4px 14px rgba(0,0,0,.35);
 }
 #evalFill{
   position:absolute; left:0; bottom:0; width:100%; height:50%;
-  background: #0e0f11;       /* 下が黒（=黒石割合） */
-  transition: height .2s ease;
+  background: #0e0f11;          /* 下が黒（=黒石の割合） */
+  transition: width .2s ease, height .2s ease;
 }
 
 /* 数字バッジ */
 .evallabels{
   position:absolute; inset: 6px 4px;
-  display:flex; flex-direction:column; justify-content:space-between; align-items:stretch;
+  display:flex; flex-direction:column; justify-content:space-between; align-items:center;
   pointer-events:none; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6);
   z-index:1; font-size: clamp(11px, calc(var(--eval-w) * 0.28), 16px);
 }
@@ -142,33 +141,6 @@ body{
 }
 .count.white{ background:#e9eef3; color:#0e0f11; border:1px solid rgba(0,0,0,.08); }
 .count.black{ background:#0e0f11; color:#e9eef3; border:1px solid rgba(255,255,255,.25); }
-
-/* ========= オーバーレイ ========= */
-.overlay{
-  position:absolute; inset: 0; display:flex; align-items:center; justify-content:center;
-  background: color-mix(in oklab, #000 45%, transparent); backdrop-filter: blur(2px);
-  opacity: 0; pointer-events: none; transition: opacity .18s ease;
-}
-.overlay.show{ opacity: 1; pointer-events: auto; }
-.overlay.hidden{ display: none; }
-.overlay-card{
-  background: var(--card); color: var(--text);
-  border: 1px solid color-mix(in oklab, var(--text) 14%, transparent);
-  border-radius: 16px; min-width: 240px; max-width: 90vw;
-  padding: 18px 16px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,.35);
-}
-.overlay-card h2{ margin:0 0 8px; font-size: 24px; letter-spacing: .5px; }
-.overlay-card p{ margin: 6px 0; color: var(--muted); }
-.overlay-actions{ display:flex; gap:10px; justify-content:center; margin-top:12px; }
-.overlay-actions button{
-  padding: 10px 14px; border-radius: 10px; border: none;
-  background: color-mix(in oklab, var(--accent) 20%, transparent); color: var(--text); font-weight: 700; cursor: pointer;
-  border:1px solid color-mix(in oklab, var(--accent) 35%, transparent);
-}
-.overlay-actions .danger{
-  background: color-mix(in oklab, var(--danger) 22%, transparent);
-  border-color: color-mix(in oklab, var(--danger) 40%, transparent);
-}
 
 /* ========= 右サイド ========= */
 .side{ display:flex; flex-direction:column; gap:14px; }
@@ -211,28 +183,62 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 .moves-actions button{ padding:6px 8px; font-size:13px }
 .foot{ text-align:center; padding: 20px 10px; color: var(--muted) }
 
-/* ========= スマホ最適化（右余白維持＋正方形保証） ========= */
+/* ========= スマホ最適化（右余白＋横バー） ========= */
 @media (max-width: 720px){
   :root{
     --layout-hpad: 10px;
     --wrap-gap: 8px;
-    --eval-w: clamp(40px, 12vw, 56px);
 
+    /* 盤サイズの計算（右余白を保ちつつ最大化） */
     --gap: 4px;
-    --board-size-limit: calc(100vw - (2 * var(--layout-hpad)) - var(--eval-w) - var(--wrap-gap));
     --min-cell: 40px;
+    --eval-h: clamp(28px, 6vw, 46px); /* 横バーの高さ */
+    /* スマホではバーは上に乗るので、幅は盤と同じ・高さは --eval-h */
+    --board-size-limit: calc(100vw - (2 * var(--layout-hpad)));
     --board-size-min: calc(9 * var(--gap) + 8 * var(--min-cell));
-    --board-size: min(max(var(--board-size-min), var(--board-size-limit)), 480px);
+    --board-size: min(max(var(--board-size-min), var(--board-size-limit)), 520px);
   }
 
-  .layout{ gap: 12px; }
-  .topbar h1{ font-size: 18px; }
-  .board-wrap{ gap: var(--wrap-gap); }
+  /* 縦積み：上に横バー、下に盤 */
+  .board-wrap{
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* 横バーにスタイル切り替え */
+  .evalbar{
+    width: var(--board-size);
+    height: var(--eval-h);
+    background: #ffffff;                       /* 左が白 */
+    border: 1px solid color-mix(in oklab, var(--text) 30%, transparent);
+    box-shadow: inset 0 4px 14px rgba(0,0,0,.35);
+  }
+  #evalFill{
+    left:0; top:0; height:100%; width:50%;     /* ← JS側で width を%更新 */
+    background: #0e0f11;                       /* 右側が白、左が黒 */
+  }
+
+  /* 数字は左右に配置（左=黒 / 右=白） */
+  .evallabels{
+    inset: 4px 6px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    font-size: clamp(11px, calc(var(--eval-h) * 0.45), 16px);
+  }
+  .evallabels .top{ order: 2; }    /* 右側（白） */
+  .evallabels .bottom{ order: 1; } /* 左側（黒） */
+
+  /* 盤の横幅は画面幅にフィット（バーと同じ） */
+  .board{
+    width: var(--board-size);
+    height: var(--board-size);
+  }
 
   .row select, .row input[type="range"]{ width: 160px; }
   .buttons{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
   .buttons button{ width:100%; }
-
   .moves{ max-height: 180px; }
 }
 
@@ -246,7 +252,6 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
   .row select, .row input[type="range"]{ width: 140px; }
   .buttons{ grid-template-columns: 1fr; }
 }
-
 @media (max-width: 360px){
   .board-wrap{ gap:6px; }
 }
