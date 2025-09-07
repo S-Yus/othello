@@ -55,7 +55,7 @@ body{
   }
 }
 
-/* 盤＋バーの並び（PCは横並び、スマホは縦積み） */
+/* PC: 盤と縦バーを横並び / SP: 縦積み（バーは上） */
 .board-wrap{
   display:flex; gap:14px; align-items:flex-start; justify-content:center;
 }
@@ -63,13 +63,14 @@ body{
 /* ========= 盤とラッパ ========= */
 .board-box{ position: relative; width: max-content; height: max-content; }
 
-/* 盤は常に正方形 */
+/* ★ 盤は「幅で決めて」高さは比率で自動 → 縦長化を防止 */
 .board{
   width: var(--board-size);
-  height: var(--board-size);
+  aspect-ratio: 1 / 1;     /* ← 高さは width に一致（content-box基準） */
+  height: auto;            /* ← 明示高さは持たない */
   display:grid;
   grid-template-columns: repeat(8, 1fr);
-  grid-auto-rows: 1fr;
+  grid-template-rows:    repeat(8, 1fr);   /* ← 行も固定して丸め誤差を均等化 */
   gap: var(--gap);
   padding: var(--gap);
   background: var(--board-green);
@@ -111,19 +112,19 @@ body{
 }
 .lastmove{ outline: 3px solid color-mix(in oklab, var(--accent-2) 60%, transparent); outline-offset: -3px; }
 
-/* ========= 評価バー（PC：縦／スマホ：横） ========= */
-/* PC（縦）：左側に配置 */
+/* ========= 評価バー（PC：縦／SP：横） ========= */
+/* PC（縦） */
 .evalbar{
   position:relative; width: var(--eval-w);
-  height: var(--board-size);
+  height: var(--board-size);             /* ← 盤の“見た目の幅”と一致するのでOK */
   border-radius: 10px; overflow:hidden;
-  background: #ffffff;/* 上が白 */
+  background: #ffffff;
   border: 1px solid color-mix(in oklab, var(--text) 30%, transparent);
   box-shadow: inset 0 4px 14px rgba(0,0,0,.35);
 }
 #evalFill{
   position:absolute; left:0; bottom:0; width:100%; height:50%;
-  background: #0e0f11;          /* 下が黒（=黒石の割合） */
+  background: #0e0f11;
   transition: width .2s ease, height .2s ease;
 }
 
@@ -189,14 +190,14 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
     --layout-hpad: 10px;
     --wrap-gap: 8px;
 
-    /* 盤サイズの計算（右余白を保ちつつ最大化） */
+    /* 盤サイズ（横幅起点。高さは aspect-ratio で自動） */
     --gap: 4px;
     --min-cell: 40px;
-    --eval-h: clamp(28px, 6vw, 46px); /* 横バーの高さ */
-    /* スマホではバーは上に乗るので、幅は盤と同じ・高さは --eval-h */
+    --eval-h: clamp(28px, 6vw, 46px);   /* 横バーの高さ */
+
     --board-size-limit: calc(100vw - (2 * var(--layout-hpad)));
-    --board-size-min: calc(9 * var(--gap) + 8 * var(--min-cell));
-    --board-size: min(max(var(--board-size-min), var(--board-size-limit)), 520px);
+    --board-size-min:   calc(9 * var(--gap) + 8 * var(--min-cell));
+    --board-size:       min(max(var(--board-size-min), var(--board-size-limit)), 520px);
   }
 
   /* 縦積み：上に横バー、下に盤 */
@@ -206,20 +207,19 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
     gap: 10px;
   }
 
-  /* 横バーにスタイル切り替え */
+  /* 横バー化（幅=盤、左=黒/右=白） */
   .evalbar{
     width: var(--board-size);
     height: var(--eval-h);
-    background: #ffffff;                       /* 左が白 */
+    background: #ffffff;
     border: 1px solid color-mix(in oklab, var(--text) 30%, transparent);
     box-shadow: inset 0 4px 14px rgba(0,0,0,.35);
   }
   #evalFill{
-    left:0; top:0; height:100%; width:50%;     /* ← JS側で width を%更新 */
-    background: #0e0f11;                       /* 右側が白、左が黒 */
+    left:0; top:0; height:100%; width:50%;
+    background: #0e0f11;
   }
 
-  /* 数字は左右に配置（左=黒 / 右=白） */
   .evallabels{
     inset: 4px 6px;
     flex-direction: row;
@@ -227,19 +227,11 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
     align-items: center;
     font-size: clamp(11px, calc(var(--eval-h) * 0.45), 16px);
   }
-  .evallabels .top{ order: 2; }    /* 右側（白） */
-  .evallabels .bottom{ order: 1; } /* 左側（黒） */
+  .evallabels .top{ order: 2; }    /* 右：白 */
+  .evallabels .bottom{ order: 1; } /* 左：黒 */
 
-  /* 盤の横幅は画面幅にフィット（バーと同じ） */
-  .board{
-    width: var(--board-size);
-    height: var(--board-size);
-  }
-
-  .row select, .row input[type="range"]{ width: 160px; }
-  .buttons{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-  .buttons button{ width:100%; }
-  .moves{ max-height: 180px; }
+  /* 盤は width のみ指定（aspect-ratio で正方形維持） */
+  .board{ width: var(--board-size); height:auto; }
 }
 
 @media (max-width: 420px){
@@ -254,4 +246,7 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 }
 @media (max-width: 360px){
   .board-wrap{ gap:6px; }
+}
+@supports (-webkit-touch-callout: none){
+  .board{ width: calc(var(--board-size) - 0.5px); }  /* 0.5px 縮める */
 }
