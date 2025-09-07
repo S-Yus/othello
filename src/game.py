@@ -15,7 +15,6 @@ def onboard(x:int, y:int)->bool:
     return 0 <= x < 8 and 0 <= y < 8
 
 def coord_to_notation(x:int,y:int)->str:
-    # A1 が (0,0)（上左）という表記
     return f"{chr(ord('A')+x)}{y+1}"
 
 def notation_to_coord(s:str)->Coord:
@@ -33,9 +32,9 @@ class Game:
         self.board: np.ndarray = self._init_board()
         self.current_player: int = BLACK
         self.pass_streak: int = 0
-        self.history: List[Dict[str,Any]] = []      # Undo用スタック（過去）
-        self.future: List[Dict[str,Any]] = []       # Redo用スタック（未来）
-        self.move_history: List[str] = []           # "E6", "pass" など
+        self.history: List[Dict[str,Any]] = []
+        self.future: List[Dict[str,Any]] = []
+        self.move_history: List[str] = []
         self.last_move: Optional[Coord] = None
 
     # --- 基本 ---
@@ -139,9 +138,7 @@ class Game:
     def make_move(self, x:int, y:int) -> bool:
         moves = self.get_legal_moves()
         if (x,y) not in moves: return False
-        # push for undo
         self.history.append(self.snapshot()); self.future.clear()
-        # apply
         self.board = Game.apply_move(self.board, x, y, self.current_player)
         self.last_move = (x,y)
         self.move_history.append(coord_to_notation(x,y))
@@ -149,31 +146,33 @@ class Game:
         self.pass_streak = 0
         return True
 
-    def pass_turn(self):
-        # pass only when no legal moves
+    def pass_turn(self) -> bool:
+        """合法手が無いときだけパスを許可。成功時 True を返す。"""
         if self.get_legal_moves():
-            # ルール上は打てるならパス不可だがUI簡便のため許容→必要ならここで return
-            pass
+            return False  # ← ここが重要：打てるならパス不可
         self.history.append(self.snapshot()); self.future.clear()
         self.move_history.append("pass")
         self.current_player *= -1
         self.pass_streak += 1
+        return True
 
     # --- 終局・スコア ---
     def is_game_over(self)->bool:
-        if self.pass_streak >= 2: return True
+        # 盤が埋まった
+        if (self.board == EMPTY).sum() == 0:
+            return True
         # 双方打てない
         if len(Game.legal_moves(self.board, BLACK)) == 0 and len(Game.legal_moves(self.board, WHITE)) == 0:
             return True
-        # 盤が埋まった
-        return (self.board == EMPTY).sum() == 0
+        # ※ pass_streak>=2 は、上の条件と等価になるため（パスを厳密運用すれば）不要
+        return False
 
     def score(self)->Dict[str,int]:
         b = int((self.board == BLACK).sum())
         w = int((self.board == WHITE).sum())
         return {"black": b, "white": w}
 
-    # --- 永続化（LocalStorage向け）---
+    # --- 永続化 ---
     def to_dict(self)->Dict[str,Any]:
         return {
             "mode": self.mode,
