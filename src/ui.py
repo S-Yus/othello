@@ -7,7 +7,9 @@ from src import ai as AI
 
 Coord = Tuple[int,int]
 LS_KEY = "othello_advanced_save_v1"
-PASS_OVERLAY_MS = 750  # パス演出の表示時間
+
+PASS_OVERLAY_MS   = 750   # パス演出の表示時間
+RESULT_DELAY_MS   = 500   # ★ 終局時、盤面を見せる遅延（ms）
 
 class UI:
     def __init__(self, game: Game):
@@ -44,6 +46,9 @@ class UI:
         self.busy = False
         self.ai_delay = int(self.delay_range.value) / 1000.0
         self.time_limit_ms: Optional[int] = None
+
+        # ★ リザルト表示の遅延タスク
+        self._result_task: Optional[asyncio.Task] = None
 
         self._init_board_dom()
         self._bind_events()
@@ -107,7 +112,7 @@ class UI:
         self.delay_value.textContent = f"{int(self.ai_delay*1000)}ms"
         self.undo_btn.disabled = not self.game.can_undo()
         self.redo_btn.disabled = not self.game.can_redo()
-        # ★ 打てる手があるときはパス不可（ボタンを無効に）
+        # 打てる手があるときはパス不可（ボタンを無効に）
         self.pass_btn.disabled = len(self.game.get_legal_moves()) > 0
 
     def render(self):
@@ -153,7 +158,7 @@ class UI:
         self._sync_controls_from_state()
         self._autosave()
 
-        # 自動パス／終局チェック
+        # 自動パス／終局チェック（ここでのみスケジュール）
         asyncio.ensure_future(self._check_auto_pass_and_result())
 
     def _render_moves(self):
@@ -195,11 +200,35 @@ class UI:
         document.getElementById("overlayNew").addEventListener("click", create_proxy(self._on_reset))
         document.getElementById("overlayClose").addEventListener("click", create_proxy(lambda e: self._hide_overlay()))
 
+    # ★ リザルト表示の遅延スケジュール（重複防止つき）
+    def _cancel_result_task(self):
+        if self._result_task is not None and not self._result_task.done():
+            self._result_task.cancel()
+        self._result_task = None
+
+    def _schedule_result_overlay(self, delay_ms:int=RESULT_DELAY_MS):
+        self._cancel_result_task()
+        async def runner():
+            # まず規定の遅延（最終盤面を見せる）
+            await asyncio.sleep(delay_ms / 1000.0)
+            # パス演出がまだ出ているなら、消えるまで待つ（最大 PASS_OVERLAY_MS ちょい超え）
+            waited = 0.0
+            while self.overlay.classList.contains("show") and "パス" in str(self.overlay_content.textContent):
+                await asyncio.sleep(0.05)
+                waited += 0.05
+                if waited > (PASS_OVERLAY_MS/1000.0) + 0.3:
+                    break
+            # まだ終局状態なら結果を表示
+            if self.game.is_game_over():
+                self._show_result_overlay()
+            self._result_task = None
+        self._result_task = asyncio.ensure_future(runner())
+
     # 自動パス／終局
     async def _check_auto_pass_and_result(self):
-        # 終局なら結果表示
+        # 終局なら：0.5秒見せてから結果
         if self.game.is_game_over():
-            self._show_result_overlay()
+            self._schedule_result_overlay(RESULT_DELAY_MS)
             return
 
         # 現手番に合法手なし → 自動パス（演出つき）
@@ -209,8 +238,8 @@ class UI:
             self.busy = True
             try:
                 await asyncio.sleep(PASS_OVERLAY_MS / 1000.0)
-                if self.game.pass_turn():  # 厳密チェック
-                    self.render()
+                if self.game.pass_turn():
+                    self.render()   # ここで終局した場合、render() 内のチェックでリザルトがスケジュールされる
             finally:
                 self.busy = False
                 self._hide_overlay()
@@ -232,6 +261,7 @@ class UI:
     def _on_reset(self, evt):
         if self.busy: return
         self._hide_overlay()
+        self._cancel_result_task()  # ★ 予約表示をキャンセル
         self.game.reset()
         AI.reset_tt()
         self.render()
@@ -242,6 +272,7 @@ class UI:
         steps = 2 if self.game.mode in ("AI_WHITE","AI_BLACK") else 1
         if self.game.undo(steps):
             self._hide_overlay()
+            self._cancel_result_task()
             self.render()
 
     def _on_redo(self, evt):
@@ -249,6 +280,7 @@ class UI:
         steps = 2 if self.game.mode in ("AI_WHITE","AI_BLACK") else 1
         if self.game.redo(steps):
             self._hide_overlay()
+            self._cancel_result_task()
             self.render()
 
     def _on_hint(self, evt):
@@ -261,6 +293,7 @@ class UI:
     def _on_mode_change(self, evt):
         self.game.mode = str(self.mode_select.value)
         self._hide_overlay()
+        self._cancel_result_task()
         self.render()
         asyncio.ensure_future(self._step_ai_loop(force=True))
 
@@ -300,7 +333,7 @@ class UI:
     # AI制御
     async def _step_ai_loop(self, force:bool=False):
         if self.game.is_game_over():
-            self._show_result_overlay()
+            self._schedule_result_overlay(RESULT_DELAY_MS)
             return
 
         async def ai_once(ai_player:int):
@@ -334,7 +367,7 @@ class UI:
                 await ai_once(ai_player)
                 await asyncio.sleep(0)
             if self.game.is_game_over():
-                self._show_result_overlay()
+                self._schedule_result_overlay(RESULT_DELAY_MS)
             return
 
         ai_player = None
@@ -346,4 +379,4 @@ class UI:
 
         await ai_once(ai_player)
         if self.game.is_game_over():
-            self._show_result_overlay()
+            self._schedule_result_overlay(RESULT_DELAY_MS)
