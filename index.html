@@ -5,12 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <meta name="theme-color" content="#2f7d32" />
-  <title>Othello by S-Yus</title>
+  <title>Reversi</title>
 
-  <!-- GitHub Pages での相対パス崩れ対策 -->
   <base href="./">
 
-  <!-- 内蔵ファビコン（404防止） -->
+  <!-- 内蔵ファビコン -->
   <link rel="icon" type="image/svg+xml"
         href='data:image/svg+xml;utf8,
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -19,11 +18,9 @@
           <circle cx="42" cy="32" r="14" fill="%23e9eef3" stroke="%230e0f11" stroke-width="1"/>
         </svg>'>
 
-  <!-- PyScript 固定版 -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css" />
   <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
 
-  <!-- あなたのスタイル -->
   <link rel="stylesheet" href="./styles.css" />
 
   <py-config>
@@ -48,34 +45,30 @@
   </header>
 
   <main class="layout">
-    <!-- 左：盤と評価バー -->
     <section class="board-wrap">
+      <!-- ★ 評価バー（白/黒2色、ラベル文字なし） -->
       <div class="evalbar">
         <div id="evalFill"></div>
         <div class="evallabels">
           <div class="label top">
-            <span>白</span>
             <span id="whiteCount" class="count white">2</span>
           </div>
           <div class="label bottom">
             <span id="blackCount" class="count black">2</span>
-            <span>黒</span>
           </div>
         </div>
       </div>
 
-      <!-- ★ 盤＋オーバーレイのラッパ -->
+      <!-- 盤＋オーバーレイ -->
       <div class="board-box">
         <div id="board" class="board" aria-label="Othello board"></div>
-
-        <!-- ★ オーバーレイ（パス／結果表示） -->
         <div id="overlay" class="overlay hidden" aria-live="polite">
-          <div class="overlay-card" id="overlayContent"> </div>
+          <div class="overlay-card" id="overlayContent"></div>
         </div>
       </div>
     </section>
 
-    <!-- 右：コントロール／手順表 -->
+    <!-- 右側UI（既存のまま） -->
     <aside class="side">
       <div id="status" class="status" role="status" aria-live="polite">Loading…</div>
 
@@ -84,8 +77,8 @@
           <label for="modeSelect">対戦モード</label>
           <select id="modeSelect">
             <option value="PVP">ローカル対戦（2人）</option>
-            <option value="AI_WHITE" selected>vs AI（AI＝白）</option>
-            <option value="AI_BLACK">vs AI（AI＝黒）</option>
+            <option value="AI_WHITE" selected>vs AI（白＝後手）</option>
+            <option value="AI_BLACK">vs AI（黒＝先手）</option>
             <option value="AI_VS_AI">AI vs AI（観戦）</option>
           </select>
         </div>
@@ -121,7 +114,7 @@
         </div>
 
         <p class="help">
-          ⌨️ ショートカット：
+          キーボードショートカット：
           <code>U</code>=Undo / <code>Y</code>=Redo /
           <code>P</code>=Pass / <code>N</code>=New / <code>H</code>=Hint
         </p>
@@ -144,7 +137,6 @@
     <small>All rights belong to S-Yus.</small>
   </footer>
 
-  <!-- エントリポイント -->
   <py-script src="src/main.py"></py-script>
 </body>
 </html>

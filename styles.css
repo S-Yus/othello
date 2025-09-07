@@ -11,16 +11,12 @@
   --board-green: #2f7d32;
   --board-dark:  #2a6b2c;
 
-  /* 盤まわり（デスクトップのデフォルト） */
+  --eval-w:      52px;   /* 評価バー幅 */
+  --layout-hpad: 18px;   /* レイアウト左右余白 */
+
+  /* 盤サイズ（デスクトップ初期値：モバイルで再計算） */
   --gap:         6px;
-  --cell-size:   60px; /* 8*60 + 9*6 = 534px */
-  --board-size:  calc(8*var(--cell-size) + 9*var(--gap));
-
-  /* 評価バーの基準幅（デスクトップ） */
-  --eval-w:      52px;
-
-  /* レイアウトの水平パディング（上書き可能） */
-  --layout-hpad: 18px;
+  --board-size:  534px;
 }
 
 *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent }
@@ -30,7 +26,7 @@ body{
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
   background: var(--bg);
   color: var(--text);
-  overflow-x: hidden; /* 丸め誤差での横スクロール抑止 */
+  overflow-x: hidden;
 }
 
 /* ========= ヘッダ ========= */
@@ -52,8 +48,6 @@ body{
 @media (max-width: 980px){
   .layout{ grid-template-columns: 1fr; gap: 14px; }
 }
-
-/* iPhone セーフエリア対応 */
 @supports (padding: max(0px)){
   .layout{
     padding-left:  max(var(--layout-hpad), env(safe-area-inset-left));
@@ -66,36 +60,30 @@ body{
 }
 
 /* ========= 盤とラッパ ========= */
-.board-box{
-  position: relative;
-  width: max-content;
-  height: max-content;
-}
+.board-box{ position: relative; width: max-content; height: max-content; }
 
 .board{
+  width: var(--board-size);
+  height: var(--board-size);
   display:grid;
-  grid-template-columns: repeat(8, var(--cell-size));
-  grid-auto-rows: var(--cell-size);
+  grid-template-columns: repeat(8, 1fr);
+  grid-auto-rows: 1fr;
   gap: var(--gap);
   background: var(--board-green);
   padding: var(--gap);
   border-radius: 14px;
   box-shadow: inset 0 8px 32px rgba(0,0,0,.25), 0 14px 30px rgba(0,0,0,.15);
-  width: max-content;
   touch-action: manipulation;
 }
 
 .cell{
   position: relative;
-  width: var(--cell-size);
-  height: var(--cell-size);
   background: var(--board-dark);
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,.08);
   cursor: pointer; outline: none;
   transition: transform .05s ease;
-  /* ❌ min-width/min-height を外す（重なりの原因）
-     → 代わりにモバイルで --cell-size を clamp して下限保証します */
+  place-self: stretch;
 }
 .cell:active{ transform: translateY(1px) }
 .cell:focus-visible{ box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 40%, transparent) }
@@ -107,7 +95,6 @@ body{
 }
 .stone.black{ background: #0e0f11; }
 .stone.white{ background: #e9eef3; }
-
 @keyframes pop{ to{ transform: scale(1); opacity: 1 } }
 
 .hint{
@@ -122,18 +109,22 @@ body{
   outline-offset: -3px;
 }
 
-/* ========= 評価バー ========= */
+/* ========= 評価バー（白/黒2色＋枠線） ========= */
 .evalbar{
   position:relative; width: var(--eval-w);
-  height: calc(8*var(--cell-size) + 2*var(--gap) + 2*var(--gap));
-  border-radius: 10px; overflow:hidden; background: #111;
-  box-shadow: inset 0 4px 14px rgba(0,0,0,.5);
+  height: var(--board-size);
+  border-radius: 10px; overflow:hidden;
+  background: #ffffff;                     /* ← 上部は白 */
+  border: 1px solid color-mix(in oklab, var(--text) 30%, transparent); /* ← 枠線 */
+  box-shadow: inset 0 4px 14px rgba(0,0,0,.35);
 }
 #evalFill{
   position:absolute; left:0; bottom:0; width:100%; height:50%;
-  background: linear-gradient(to top, #0e0f11, #4ade80);
+  background: #0e0f11;                    /* ← 下部は黒（高さ=黒の割合） */
   transition: height .2s ease;
 }
+
+/* 数字バッジ（ラベル文字は廃止、中央寄せ） */
 .evallabels{
   position:absolute; inset: 6px 4px;
   display:flex; flex-direction:column; justify-content:space-between; align-items:stretch;
@@ -141,11 +132,17 @@ body{
   z-index:1; font-size: clamp(11px, calc(var(--eval-w) * 0.28), 16px);
 }
 .evallabels .label{
-  display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%; white-space:nowrap;
+  display:flex; align-items:center; justify-content:center; gap:6px; /* ← 中央寄せ */
+  width:100%;
 }
-.count{ pointer-events:auto; padding: 2px 6px; border-radius: 999px; font-weight: 800; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
-.count.white{ background:#e9eef3; color:#0e0f11; }
-.count.black{ background:#0e0f11; color:#e9eef3; }
+.count{
+  pointer-events:auto;
+  padding: 2px 6px; border-radius: 999px; font-weight: 800;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  line-height: 1;
+}
+.count.white{ background:#e9eef3; color:#0e0f11; border:1px solid rgba(0,0,0,.08); } /* 視認性UP */
+.count.black{ background:#0e0f11; color:#e9eef3; border:1px solid rgba(255,255,255,.25); }
 
 /* ========= オーバーレイ ========= */
 .overlay{
@@ -202,7 +199,7 @@ button{
   color: var(--text); cursor:pointer; font-weight:600;
   border:1px solid color-mix(in oklab, var(--accent) 35%, transparent);
   transition: transform .05s ease, background .2s ease;
-  min-height: 44px; /* ← ボタンは44pxを維持 */
+  min-height: 44px;
 }
 button:hover{ transform: translateY(-1px) }
 button:disabled{ opacity:.5; cursor:not-allowed; transform:none }
@@ -221,29 +218,18 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 
 .foot{ text-align:center; padding: 20px 10px; color: var(--muted) }
 
-/* ========= スマホ最適化（重なり防止ロジック） ========= */
+/* ========= スマホ最適化（右余白維持＋正方形保証） ========= */
 @media (max-width: 720px){
   :root{
-    /* レイアウト周り */
     --layout-hpad: 10px;
     --wrap-gap: 8px;
-
-    /* 評価バー幅（端末幅で可変） */
     --eval-w: clamp(40px, 12vw, 56px);
 
-    /* セルの最小サイズ（重なり防止の下限） */
-    --min-cell: 40px;
-
-    /* 「この端末で使える盤サイズ」と「必要最小盤サイズ」 */
-    --board-size-limit: calc(100vw - (2 * var(--layout-hpad)) - var(--eval-w) - var(--wrap-gap));
-    --board-size-min: calc(9 * var(--gap) + 8 * var(--min-cell));
-
-    /* 盤サイズ：必要最小を確保しつつ、最大480pxでクランプ */
-    --board-size: min(max(var(--board-size-min), var(--board-size-limit)), 480px);
-
-    /* セルサイズは常に --min-cell 以上を保証（重なり防止の肝） */
     --gap: 4px;
-    --cell-size: clamp(var(--min-cell), calc((var(--board-size) - 9*var(--gap)) / 8), 72px);
+    --board-size-limit: calc(100vw - (2 * var(--layout-hpad)) - var(--eval-w) - var(--wrap-gap));
+    --min-cell: 40px;
+    --board-size-min: calc(9 * var(--gap) + 8 * var(--min-cell));
+    --board-size: min(max(var(--board-size-min), var(--board-size-limit)), 480px);
   }
 
   .layout{ gap: 12px; }
@@ -258,10 +244,7 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 }
 
 @media (max-width: 420px){
-  :root{
-    --layout-hpad: 12px; /* 右余白を少し厚めに */
-    /* 盤サイズは上の式のまま自動で再計算 */
-  }
+  :root{ --layout-hpad: 12px; }
   .row label{ font-size: 13px; }
   .help{ font-size: 12px; }
   .topbar{ padding: 10px 12px; }
