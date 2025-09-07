@@ -8,6 +8,8 @@ from src import ai as AI
 Coord = Tuple[int,int]
 LS_KEY = "othello_advanced_save_v1"
 
+PASS_OVERLAY_MS = 750  # パス表示の時間
+
 class UI:
     def __init__(self, game: Game):
         self.game = game
@@ -16,6 +18,12 @@ class UI:
         self.board_el   = document.getElementById("board")
         self.status_el  = document.getElementById("status")
         self.eval_fill  = document.getElementById("evalFill")
+        self.white_count_el = document.getElementById("whiteCount")
+        self.black_count_el = document.getElementById("blackCount")
+
+        # ★ オーバーレイ
+        self.overlay = document.getElementById("overlay")
+        self.overlay_content = document.getElementById("overlayContent")
 
         self.mode_select   = document.getElementById("modeSelect")
         self.depth_select  = document.getElementById("depthSelect")
@@ -68,7 +76,7 @@ class UI:
         self.hint_btn.addEventListener("click", create_proxy(self._on_hint))
         self.undo_btn.addEventListener("click", create_proxy(self._on_undo))
         self.redo_btn.addEventListener("click", create_proxy(self._on_redo))
-        self.pass_btn.addEventListener("click", create_proxy(self._on_pass))
+        self.pass_btn.addEventListener("click", create_proxy(self._on_pass))  # 手動パスも残す（自動でも動く）
         self.reset_btn.addEventListener("click", create_proxy(self._on_reset))
 
         self.copy_moves_btn.addEventListener("click", create_proxy(self._on_copy_moves))
@@ -145,14 +153,8 @@ class UI:
         total = max(1, sc['black'] + sc['white'])
         h = int(100 * sc['black'] / total)
         self.eval_fill.style.height = f"{h}%"
-
-        # ★ 数字（都度DOMを取り直して確実に更新）
-        white_count_el = document.getElementById("whiteCount")
-        black_count_el = document.getElementById("blackCount")
-        if white_count_el is not None:
-            white_count_el.textContent = str(sc['white'])
-        if black_count_el is not None:
-            black_count_el.textContent = str(sc['black'])
+        if self.white_count_el is not None: self.white_count_el.textContent = str(sc['white'])
+        if self.black_count_el is not None: self.black_count_el.textContent = str(sc['black'])
 
         # 手順
         self._render_moves()
@@ -160,6 +162,9 @@ class UI:
         self._sync_controls_from_state()
         # 自動保存
         self._autosave()
+
+        # ★ 自動パス／終局チェック
+        asyncio.ensure_future(self._check_auto_pass_and_result())
 
     def _render_moves(self):
         while self.moves_list.firstChild: self.moves_list.removeChild(self.moves_list.firstChild)
@@ -171,6 +176,66 @@ class UI:
             self.moves_list.appendChild(li)
         self.moves_list.scrollTop = self.moves_list.scrollHeight
 
+    # ---------------- オーバーレイ制御 ----------------
+    def _hide_overlay(self):
+        self.overlay.classList.add("hidden")
+        self.overlay.classList.remove("show")
+        self.overlay_content.innerHTML = ""
+
+    def _show_pass_overlay(self, who:str):
+        # who = "黒" or "白"
+        self.overlay_content.innerHTML = f"""
+          <h2>パス</h2>
+          <p>{who} は着手可能手がありません。</p>
+        """
+        self.overlay.classList.remove("hidden")
+        self.overlay.classList.add("show")
+
+    def _show_result_overlay(self):
+        sc = self.game.score()
+        b, w = sc["black"], sc["white"]
+        if b > w: title = "黒の勝ち"
+        elif w > b: title = "白の勝ち"
+        else: title = "引き分け"
+
+        self.overlay_content.innerHTML = f"""
+          <h2>結果</h2>
+          <p><strong>黒 {b} - 白 {w}</strong></p>
+          <p>{title}</p>
+          <div class="overlay-actions">
+            <button id="overlayNew" class="danger">New Game</button>
+            <button id="overlayClose">Close</button>
+          </div>
+        """
+        self.overlay.classList.remove("hidden")
+        self.overlay.classList.add("show")
+
+        # ボタン結線
+        document.getElementById("overlayNew").addEventListener("click", create_proxy(self._on_reset))
+        document.getElementById("overlayClose").addEventListener("click", create_proxy(lambda e: self._hide_overlay()))
+
+    # ---------------- 自動パス／終局ロジック ----------------
+    async def _check_auto_pass_and_result(self):
+        # 終局なら結果表示
+        if self.game.is_game_over():
+            self._show_result_overlay()
+            return
+
+        # 現手番に合法手が無ければ自動パス（演出つき）
+        if len(Game.legal_moves(self.game.board, self.game.current_player)) == 0:
+            who = "黒" if self.game.current_player == BLACK else "白"
+            # 表示
+            self._show_pass_overlay(who)
+            self.busy = True
+            try:
+                await asyncio.sleep(PASS_OVERLAY_MS / 1000.0)
+                self.game.pass_turn()  # 手番を相手へ
+                self.render()          # レンダ後、再度この関数が呼ばれる（連続パス→終局にも対応）
+            finally:
+                self.busy = False
+                # PASS表示はレンダ直後に消す（結果表示が出る場合はそちらが前面）
+                self._hide_overlay()
+
     # ---------------- ハンドラ ----------------
     def _on_cell_click(self, evt):
         if self.busy: return
@@ -180,6 +245,7 @@ class UI:
             asyncio.ensure_future(self._step_ai_loop())
 
     def _on_pass(self, evt):
+        # 手動パス（通常は自動で動くが、ユーザー操作も許可）
         if self.busy: return
         self.game.pass_turn()
         self.render()
@@ -187,6 +253,7 @@ class UI:
 
     def _on_reset(self, evt):
         if self.busy: return
+        self._hide_overlay()
         self.game.reset()
         AI.reset_tt()
         self.render()
@@ -196,12 +263,14 @@ class UI:
         if self.busy: return
         steps = 2 if self.game.mode in ("AI_WHITE","AI_BLACK") else 1
         if self.game.undo(steps):
+            self._hide_overlay()  # 状態変化に合わせて隠す
             self.render()
 
     def _on_redo(self, evt):
         if self.busy: return
         steps = 2 if self.game.mode in ("AI_WHITE","AI_BLACK") else 1
         if self.game.redo(steps):
+            self._hide_overlay()
             self.render()
 
     def _on_hint(self, evt):
@@ -213,6 +282,7 @@ class UI:
 
     def _on_mode_change(self, evt):
         self.game.mode = str(self.mode_select.value)
+        self._hide_overlay()
         self.render()
         asyncio.ensure_future(self._step_ai_loop(force=True))
 
@@ -251,11 +321,25 @@ class UI:
 
     # ---------------- AI制御 ----------------
     async def _step_ai_loop(self, force:bool=False):
-        if self.game.is_game_over(): return
+        if self.game.is_game_over(): 
+            self._show_result_overlay()
+            return
 
         async def ai_once(ai_player:int):
+            # 合法手なし → パス演出＋自動パス
             if len(Game.legal_moves(self.game.board, ai_player)) == 0:
-                self.game.pass_turn(); self.render(); return
+                who = "黒" if ai_player == BLACK else "白"
+                self._show_pass_overlay(who)
+                self.busy = True
+                try:
+                    await asyncio.sleep(PASS_OVERLAY_MS / 1000.0)
+                    self.game.pass_turn()
+                    self.render()
+                finally:
+                    self.busy = False
+                    self._hide_overlay()
+                return
+
             self.busy = True
             try:
                 await asyncio.sleep(self.ai_delay)
@@ -271,6 +355,8 @@ class UI:
                 ai_player = BLACK if self.game.current_player==BLACK else WHITE
                 await ai_once(ai_player)
                 await asyncio.sleep(0)
+            if self.game.is_game_over():
+                self._show_result_overlay()
             return
 
         ai_player = None
@@ -281,3 +367,5 @@ class UI:
         if not force and self.game.current_player != ai_player: return
 
         await ai_once(ai_player)
+        if self.game.is_game_over():
+            self._show_result_overlay()

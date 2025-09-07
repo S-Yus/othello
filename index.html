@@ -10,7 +10,7 @@
   <!-- GitHub Pages での相対パス崩れ対策 -->
   <base href="./">
 
-  <!-- ✅ 内蔵ファビコン（404防止） -->
+  <!-- 内蔵ファビコン（404防止） -->
   <link rel="icon" type="image/svg+xml"
         href='data:image/svg+xml;utf8,
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -52,7 +52,6 @@
     <section class="board-wrap">
       <div class="evalbar">
         <div id="evalFill"></div>
-        <!-- ★ 数字付きラベルを追加 -->
         <div class="evallabels">
           <div class="label top">
             <span>白</span>
@@ -64,7 +63,16 @@
           </div>
         </div>
       </div>
-      <div id="board" class="board" aria-label="Othello board"></div>
+
+      <!-- ★ 盤＋オーバーレイのラッパ -->
+      <div class="board-box">
+        <div id="board" class="board" aria-label="Othello board"></div>
+
+        <!-- ★ オーバーレイ（パス／結果表示） -->
+        <div id="overlay" class="overlay hidden" aria-live="polite">
+          <div class="overlay-card" id="overlayContent"> </div>
+        </div>
+      </div>
     </section>
 
     <!-- 右：コントロール／手順表 -->
@@ -76,14 +84,14 @@
           <label for="modeSelect">対戦モード</label>
           <select id="modeSelect">
             <option value="PVP">ローカル対戦（2人）</option>
-            <option value="AI_WHITE" selected>vs AI（白＝後手）</option>
-            <option value="AI_BLACK">vs AI（黒＝先手）</option>
+            <option value="AI_WHITE" selected>vs AI（AI＝白）</option>
+            <option value="AI_BLACK">vs AI（AI＝黒）</option>
             <option value="AI_VS_AI">AI vs AI（観戦）</option>
           </select>
         </div>
 
         <div class="row">
-          <label for="depthSelect">思考の深さ</label>
+          <label for="depthSelect">思考深さ</label>
           <select id="depthSelect">
             <option>2</option>
             <option>3</option>
@@ -113,7 +121,7 @@
         </div>
 
         <p class="help">
-          キーボードショートカット：
+          ⌨️ ショートカット：
           <code>U</code>=Undo / <code>Y</code>=Redo /
           <code>P</code>=Pass / <code>N</code>=New / <code>H</code>=Hint
         </p>
@@ -133,7 +141,7 @@
   </main>
 
   <footer class="foot">
-    <small>All rights belong to Yusei.</small>
+    <small>© Your Name. MIT License.</small>
   </footer>
 
   <!-- エントリポイント -->
