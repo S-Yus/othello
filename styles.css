@@ -268,3 +268,16 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 @supports (-webkit-touch-callout: none){
   .board-box{ width: calc(var(--board-size) - 0.5px); }
 }
+/* ===== 中央4×4の外枠強調 ===== */
+.cell.core-top    { border-top:    3px solid var(--accent-2); }
+.cell.core-bottom { border-bottom: 3px solid var(--accent-2); }
+.cell.core-left   { border-left:   3px solid var(--accent-2); }
+.cell.core-right  { border-right:  3px solid var(--accent-2); }
+
+/* ほんのり発光（任意。外したければ消してOK） */
+.cell.core-top,
+.cell.core-bottom,
+.cell.core-left,
+.cell.core-right {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent-2) 35%, transparent) inset;
+}

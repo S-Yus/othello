@@ -160,20 +160,29 @@ def init_state():
       render();
     }
 
-    function buildBoardGrid() {
-      const boardEl = document.getElementById("board");
-      boardEl.innerHTML = "";
-      for (let r=0;r<8;r++){
-        for (let c=0;c<8;c++){
-          const cell = document.createElement("div");
-          cell.className = "cell";
-          cell.setAttribute("role","gridcell");
-          cell.dataset.r=r; cell.dataset.c=c;
-          cell.addEventListener("click", () => onCellClick(r,c));
-          boardEl.appendChild(cell);
+      function buildBoardGrid() {
+        const boardEl = document.getElementById("board");
+        boardEl.innerHTML = "";
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            cell.setAttribute("role","gridcell");
+            cell.dataset.r = r; cell.dataset.c = c;
+
+            // ★ 中央4x4の外枠クラス付与（0-based: r,c ∈ 2..5）
+            if (r >= 2 && r <= 5 && c >= 2 && c <= 5) {
+              if (r === 2) cell.classList.add("core-top");
+              if (r === 5) cell.classList.add("core-bottom");
+              if (c === 2) cell.classList.add("core-left");
+              if (c === 5) cell.classList.add("core-right");
+            }
+
+            cell.addEventListener("click", () => onCellClick(r, c));
+            boardEl.appendChild(cell);
+          }
         }
       }
-    }
 
     function legalMoves(board, player){
       const py = engine.valid_moves(board, player); const arr = py.toJs(); py.destroy?.();
