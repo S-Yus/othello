@@ -1,11 +1,20 @@
+# src/main.py
+from js import console
 from src.game import Game
 from src.ui import UI
-
-# 起動
-game = Game(mode="AI_WHITE")  # 初期モードは必要に応じて変更
-ui = UI(game)
-ui.render()
-
-# 初手がAIなら自動開始
 import asyncio
-asyncio.ensure_future(ui._step_ai_loop(force=True))
+
+def boot():
+    try:
+        game = Game(mode="AI_WHITE")
+        ui = UI(game)
+        ui.render()
+        asyncio.ensure_future(ui._step_ai_loop(force=True))
+        console.log("[Othello] Boot OK")
+    except Exception as e:
+        console.error("[Othello] Boot FAILED:", e)
+        # 例外の詳細（スタックトレース）も吐く
+        import traceback
+        console.error(traceback.format_exc())
+
+boot()
