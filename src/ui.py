@@ -129,6 +129,9 @@ class UI:
                 btn.addEventListener("pointerleave", create_proxy(on_leave))
 
                 self.board_el.appendChild(btn)
+        console.log("[Othello] cells:", self.board_el.children.length)
+    if self.board_el.children.length != 64:
+        console.error("[Othello] cell build failed")
     # -------------------------------------------------------------------------
     # イベント束ね
     # -------------------------------------------------------------------------
