@@ -281,3 +281,33 @@ code{ background: color-mix(in oklab, var(--text) 10%, transparent); padding:2px
 .cell.core-right {
   box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent-2) 35%, transparent) inset;
 }
+/* ==== 反転アニメ（既存 .stone.flip と合わせてOK） ==== */
+.stone.flip {
+  animation: flipDisc .22s ease-in-out both;
+  transform-style: preserve-3d;
+}
+@keyframes flipDisc {
+  0%   { transform: rotateY(0deg)   scale(1.0); }
+  50%  { transform: rotateY(90deg)  scale(0.94); }
+  100% { transform: rotateY(180deg) scale(1.0); }
+}
+
+/* ==== プレビュー着手（hover/touchで半透明） ==== */
+.stone.preview{
+  opacity: .35 !important;
+  transform: scale(1) !important;
+  animation: none !important;
+}
+
+/* ==== オーバーレイ用スピナー ==== */
+.spinner{
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in oklab, var(--text) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 8px;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+
+.muted{ color: var(--muted); margin: 0; }

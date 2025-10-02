@@ -10,6 +10,8 @@ LS_KEY = "othello_advanced_save_v1"
 
 PASS_OVERLAY_MS   = 750
 RESULT_DELAY_MS   = 500
+THINKING_TEXT = "AIが考えています…"
+
 
 class UI:
     def __init__(self, game: Game):
@@ -62,6 +64,23 @@ class UI:
                 btn.dataset.x = str(x)
                 btn.dataset.y = str(y)
                 btn.addEventListener("click", create_proxy(self._on_cell_click))
+
+                # --- ここから：プレビュー円 ---
+                def on_enter(ev, xx=x, yy=y):
+                    if int(self.game.board[yy,xx]) != EMPTY: return
+                    if (xx,yy) not in self.game.get_legal_moves(): return
+                    preview = document.createElement("div")
+                    preview.classList.add("stone","preview")
+                    preview.classList.add("black" if self.game.current_player==BLACK else "white")
+                    ev.currentTarget.appendChild(preview)
+                def on_leave(ev):
+                    p = ev.currentTarget.querySelector(".stone.preview")
+                    if p: ev.currentTarget.removeChild(p)
+
+                btn.addEventListener("pointerenter", create_proxy(on_enter))
+                btn.addEventListener("pointerleave", create_proxy(on_leave))
+                # --- ここまで ---
+
                 self.board_el.appendChild(btn)
 
     # ---------- イベント ----------
@@ -133,6 +152,7 @@ class UI:
 
     def render(self):
         # 盤描画
+        flips_set = set(tuple(rc) for rc in self.game.last_flips)
         for y in range(8):
             for x in range(8):
                 idx = y*8 + x
@@ -145,6 +165,8 @@ class UI:
                     st = document.createElement("div")
                     st.classList.add("stone")
                     st.classList.add("black" if v==BLACK else "white")
+                    if (x,y) in flips_set:
+                        st.classList.add("flip")  # ★ 反転アニメ
                     cell.appendChild(st)
 
         if self.game.last_move is not None:
@@ -188,6 +210,12 @@ class UI:
         self.moves_list.scrollTop = self.moves_list.scrollHeight
 
     # ---------- オーバーレイ ----------
+    def _show_thinking(self):
+        self.overlay_content.innerHTML = """
+        <div class="spinner"></div>
+        <p class="muted">{}</p>
+        """.format(THINKING_TEXT)
+        self.overlay.classList.remove("hidden"); self.overlay.classList.add("show")
     def _hide_overlay(self):
         self.overlay.classList.add("hidden")
         self.overlay.classList.remove("show")
@@ -339,6 +367,7 @@ class UI:
             return
 
         async def ai_once(ai_player:int):
+            # パス処理
             if len(Game.legal_moves(self.game.board, ai_player)) == 0:
                 who = "黒" if ai_player == BLACK else "白"
                 self._show_pass_overlay(who)
@@ -352,6 +381,8 @@ class UI:
                     self._hide_overlay()
                 return
 
+            # 考え中オーバーレイ
+            self._show_thinking()
             self.busy = True
             try:
                 await asyncio.sleep(self.ai_delay)
@@ -361,7 +392,9 @@ class UI:
                     self.render()
             finally:
                 self.busy = False
+                self._hide_overlay()
 
+        # 以下は元のロジックと同じ（AI_VS_AI / モード判定など）
         if self.game.mode == "AI_VS_AI":
             while not self.game.is_game_over() and self.game.mode == "AI_VS_AI":
                 ai_player = BLACK if self.game.current_player==BLACK else WHITE
@@ -374,7 +407,6 @@ class UI:
         ai_player = None
         if self.game.mode == "AI_WHITE": ai_player = WHITE
         elif self.game.mode == "AI_BLACK": ai_player = BLACK
-
         if ai_player is None: return
         if not force and self.game.current_player != ai_player: return
 

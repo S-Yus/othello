@@ -1,375 +1,109 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Othello – pass-safe sample</title>
-<link rel="stylesheet" href="styles.css" />
-<style>
-/* 反転モーションだけ最小追記（styles.cssそのままでOK） */
-.stone.flip {
-  animation: flipDisc .22s ease-in-out both;
-  transform-style: preserve-3d;
-}
-@keyframes flipDisc {
-  0%   { transform: rotateY(0deg)   scale(1.0); }
-  50%  { transform: rotateY(90deg)  scale(0.94); }
-  100% { transform: rotateY(180deg) scale(1.0); }
-}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Othello – PyScript Edition</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- PyScript -->
+  <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
+  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+
+  <py-config>
+    packages = ["numpy"]
+    [[fetch]]
+    files = [
+      "./src/__init__.py",
+      "./src/game.py",
+      "./src/ai.py",
+      "./src/ui.py",
+      "./src/main.py",
+    ]
+  </py-config>
 </head>
 <body>
   <header class="topbar">
     <h1>Othello</h1>
     <div class="badges">
-      <span class="badge">Pass-safe</span>
-      <span class="badge">Pyodide</span>
+      <span class="badge">PyScript</span>
+      <span class="badge">AI</span>
     </div>
   </header>
 
   <main class="layout">
     <section class="board-wrap">
-      <!-- 評価バー（任意） -->
+      <!-- 評価バー（ui.pyに合わせたID） -->
       <div class="evalbar" aria-hidden="true">
-        <div id="evalFill" style="height:50%"></div>
+        <div id="evalFill"></div>
         <div class="evallabels">
-          <div class="label top"><span class="count white" id="whiteCntBadge">2</span></div>
-          <div class="label bottom"><span class="count black" id="blackCntBadge">2</span></div>
+          <div class="label top"><span class="count white" id="whiteCount">2</span></div>
+          <div class="label bottom"><span class="count black" id="blackCount">2</span></div>
         </div>
       </div>
 
-      <!-- 盤コンテナ（正方形を保証） -->
+      <!-- 盤は ui.py が中に button.cell を生成 -->
       <div class="board-box">
-        <div id="board" class="board" aria-label="Othello board" role="grid"></div>
+        <div id="board" class="board" role="grid" aria-label="Othello board"></div>
 
-        <!-- オーバーレイ（終局など） -->
+        <!-- オーバーレイ（ui.py が中身を書き換える） -->
         <div id="overlay" class="overlay hidden" aria-live="polite">
-          <div class="overlay-card">
-            <h2 id="resultTitle">Game Over</h2>
-            <p><span class="count black" id="blackCnt">0</span> — <span class="count white" id="whiteCnt">0</span></p>
-            <div class="overlay-actions">
-              <button id="playAgain">もう一度</button>
-              <button id="hardReset" class="danger">リセット</button>
-            </div>
-          </div>
+          <div class="overlay-card" id="overlayContent"></div>
         </div>
       </div>
     </section>
 
-    <!-- 右サイド -->
     <aside class="side">
-      <div class="status" id="turn">Turn: —</div>
+      <div class="status" id="status">手番：—｜石数 B 2 - W 2｜モード：—</div>
+
       <div class="card">
-        <div class="buttons">
-          <button id="passBtn">パス</button>
-          <button id="resetBtn">リセット</button>
+        <div class="row">
+          <label>モード</label>
+          <select id="modeSelect">
+            <option value="PVP">2人</option>
+            <option value="AI_WHITE" selected>vs AI（白）</option>
+            <option value="AI_BLACK">vs AI（黒）</option>
+            <option value="AI_VS_AI">AI vs AI</option>
+          </select>
         </div>
-        <p class="help">ヒント表示：合法手に小さな点（.hint）</p>
+        <div class="row">
+          <label>探索深さ</label>
+          <select id="depthSelect">
+            <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>AI遅延</label>
+          <input id="delayRange" type="range" min="0" max="1500" step="50" value="300" />
+          <span id="delayValue">300ms</span>
+        </div>
         <div class="toggles">
-          <label><input type="checkbox" id="hintToggle" checked> 合法手ハイライト</label>
-          <label><input type="checkbox" id="animToggle" checked> 反転アニメ</label>
+          <label><input type="checkbox" id="hintsToggle" checked> 合法手ハイライト</label>
+          <label><input type="checkbox" id="autosaveToggle" checked> 自動保存</label>
+        </div>
+        <div class="buttons">
+          <button id="hintBtn">ヒント</button>
+          <button id="passBtn">パス</button>
+          <button id="resetBtn" class="danger">リセット</button>
         </div>
       </div>
+
       <div class="card">
         <strong>着手履歴</strong>
-        <ol class="moves" id="moves"></ol>
+        <ol class="moves" id="movesList"></ol>
         <div class="moves-actions">
           <button id="undoBtn" disabled>戻る</button>
           <button id="redoBtn" disabled>進む</button>
+          <button id="copyMovesBtn">コピー</button>
+          <button id="clearMovesBtn">クリア</button>
         </div>
       </div>
-      <div class="foot">© Othello sample</div>
+
+      <div class="foot">© Othello</div>
     </aside>
   </main>
 
-  <!-- ===== Python engine (pass-safe) ===== -->
-  <script id="engine-py" type="text/plain">
-from copy import deepcopy
-B, W, E = "B", "W", "."
-DIRS = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
-def opponent(p): return W if p == B else B
-def inb(r,c): return 0 <= r < 8 and 0 <= c < 8
-def initial_board():
-    bd = [[E]*8 for _ in range(8)]
-    bd[3][3] = W; bd[3][4] = B
-    bd[4][3] = B; bd[4][4] = W
-    return bd
-def flips_for_move(board, player, r, c):
-    if not inb(r,c) or board[r][c] != E: return []
-    opp = opponent(player); flips=[]
-    for dr,dc in DIRS:
-        path=[]; rr,cc=r+dr,c+dc
-        while inb(rr,cc) and board[rr][cc]==opp:
-            path.append((rr,cc)); rr+=dr; cc+=dc
-        if inb(rr,cc) and board[rr][cc]==player and path:
-            flips.extend(path)
-    return flips
-def valid_moves(board, player):
-    return [(r,c) for r in range(8) for c in range(8)
-            if board[r][c]==E and flips_for_move(board,player,r,c)]
-def apply_move(board, player, move):
-    nb = deepcopy(board)
-    if move is None: return nb
-    r,c = move; fs = flips_for_move(nb, player, r, c)
-    if not fs: return nb
-    nb[r][c]=player
-    for rr,cc in fs: nb[rr][cc]=player
-    return nb
-def step(board, player, move):
-    nb = apply_move(board, player, move)
-    if move is None:
-        opp = opponent(player)
-        opp_ms = valid_moves(nb, opp)
-        if opp_ms: return {"board":nb,"next_player":opp,"passed":True,"game_over":False}
-        self_ms = valid_moves(nb, player)
-        if self_ms: return {"board":nb,"next_player":player,"passed":True,"game_over":False}
-        return {"board":nb,"next_player":None,"passed":True,"game_over":True}
-    opp = opponent(player)
-    opp_ms = valid_moves(nb, opp)
-    if opp_ms: return {"board":nb,"next_player":opp,"passed":False,"game_over":False}
-    self_ms = valid_moves(nb, player)
-    if self_ms: return {"board":nb,"next_player":player,"passed":True,"game_over":False}
-    return {"board":nb,"next_player":None,"passed":True,"game_over":True}
-def score(board):
-    b=sum(1 for r in board for x in r if x==B)
-    w=sum(1 for r in board for x in r if x==W)
-    return {"B":b,"W":w}
-def init_state():
-    return initial_board(), B
-  </script>
-
-  <!-- Pyodide -->
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
-  <script>
-    let pyodide, engine;
-    const state = {
-      board: null, current: null,
-      history: [], future: [],
-      busy: false, // 入力ガード
-      lastMove: null
-    };
-
-    async function boot() {
-      pyodide = await loadPyodide();
-      pyodide.FS.writeFile("engine.py", document.getElementById("engine-py").textContent);
-      await pyodide.runPythonAsync("import engine");
-      engine = pyodide.pyimport("engine");
-      resetGame();
-      buildBoardGrid();
-      hookUI();
-      render();
-    }
-
-      function buildBoardGrid() {
-        const boardEl = document.getElementById("board");
-        boardEl.innerHTML = "";
-        for (let r = 0; r < 8; r++) {
-          for (let c = 0; c < 8; c++) {
-            const cell = document.createElement("div");
-            cell.className = "cell";
-            cell.setAttribute("role","gridcell");
-            cell.dataset.r = r; cell.dataset.c = c;
-
-            // ★ 中央4x4の外枠クラス付与（0-based: r,c ∈ 2..5）
-            if (r >= 2 && r <= 5 && c >= 2 && c <= 5) {
-              if (r === 2) cell.classList.add("core-top");
-              if (r === 5) cell.classList.add("core-bottom");
-              if (c === 2) cell.classList.add("core-left");
-              if (c === 5) cell.classList.add("core-right");
-            }
-
-            cell.addEventListener("click", () => onCellClick(r, c));
-            boardEl.appendChild(cell);
-          }
-        }
-      }
-
-    function legalMoves(board, player){
-      const py = engine.valid_moves(board, player); const arr = py.toJs(); py.destroy?.();
-      return arr;
-    }
-    function flipsFor(board, player, r, c){
-      const py = engine.flips_for_move(board, player, r, c); const arr = py.toJs(); py.destroy?.();
-      return arr;
-    }
-
-    function renderHints(){
-      const show = document.getElementById("hintToggle").checked;
-      const ms = show && state.current ? legalMoves(state.board, state.current) : [];
-      const set = new Set(ms?.map(([r,c])=>`${r},${c}`));
-      const nodes = document.getElementById("board").children;
-      let i=0;
-      for (let r=0;r<8;r++){
-        for (let c=0;c<8;c++){
-          const cell = nodes[i++];
-          // ヒント点
-          const key = `${r},${c}`;
-          const has = set.has(key);
-          const old = cell.querySelector(".hint");
-          if (has && !old){
-            const dot = document.createElement("i");
-            dot.className = "hint";
-            cell.appendChild(dot);
-          }else if(!has && old){
-            old.remove();
-          }
-          // 最終着手枠
-          if (state.lastMove && state.lastMove[0]===r && state.lastMove[1]===c){
-            cell.classList.add("lastmove");
-          } else {
-            cell.classList.remove("lastmove");
-          }
-        }
-      }
-    }
-
-    function renderBoard(animatedFlips = []){
-      const boardEl = document.getElementById("board").children;
-      let idx = 0;
-      const flipSet = new Set(animatedFlips.map(([r,c])=>`${r},${c}`));
-      for (let r=0;r<8;r++){
-        for (let c=0;c<8;c++){
-          const cell = boardEl[idx++]; cell.innerHTML = "";
-          const v = state.board[r][c];
-          if (v==="B"||v==="W"){
-            const s = document.createElement("div");
-            s.className = "stone " + (v==="B" ? "black" : "white");
-            if (flipSet.has(`${r},${c}`) && document.getElementById("animToggle").checked){
-              s.classList.add("flip");
-            }
-            cell.appendChild(s);
-          }
-        }
-      }
-      renderHints();
-    }
-
-    function renderHUD(){
-      const t = document.getElementById("turn");
-      t.textContent = "Turn: " + (state.current ? (state.current==="B" ? "Black" : "White") : "—");
-      const s = engine.score(state.board).toJs();
-      document.getElementById("blackCnt").textContent = s.B;
-      document.getElementById("whiteCnt").textContent = s.W;
-      document.getElementById("blackCntBadge").textContent = s.B;
-      document.getElementById("whiteCntBadge").textContent = s.W;
-
-      // evalバー（黒の割合）
-      const total = s.B + s.W || 1;
-      const blackRatio = s.B / total;
-      const fill = document.getElementById("evalFill");
-      const isMobile = matchMedia("(max-width: 720px)").matches;
-      if (isMobile){
-        // 横バー: width％で黒
-        fill.style.width = `${Math.round(blackRatio*100)}%`;
-      } else {
-        // 縦バー: height％で黒
-        fill.style.height = `${Math.round(blackRatio*100)}%`;
-      }
-    }
-
-    function render(animatedFlips=[]){
-      renderBoard(animatedFlips);
-      renderHUD();
-      updateHistoryButtons();
-    }
-
-    function pushHistory(){
-      // 局面のディープコピー（配列→JSON→配列）
-      state.history.push({ board: JSON.parse(JSON.stringify(state.board)), current: state.current, lastMove: state.lastMove });
-      state.future.length = 0;
-    }
-
-    function updateHistoryButtons(){
-      document.getElementById("undoBtn").disabled = state.history.length===0;
-      document.getElementById("redoBtn").disabled = state.future.length===0;
-    }
-
-    function undo(){
-      if (state.history.length===0) return;
-      state.future.push({ board: state.board, current: state.current, lastMove: state.lastMove });
-      const prev = state.history.pop();
-      state.board = prev.board; state.current = prev.current; state.lastMove = prev.lastMove;
-      render();
-    }
-    function redo(){
-      if (state.future.length===0) return;
-      state.history.push({ board: state.board, current: state.current, lastMove: state.lastMove });
-      const next = state.future.pop();
-      state.board = next.board; state.current = next.current; state.lastMove = next.lastMove;
-      render();
-    }
-
-    function showOverlay(){
-      const el = document.getElementById("overlay");
-      el.classList.remove("hidden");
-      requestAnimationFrame(()=>el.classList.add("show"));
-    }
-    function hideOverlay(){
-      const el = document.getElementById("overlay");
-      el.classList.remove("show");
-      setTimeout(()=>el.classList.add("hidden"), 180);
-    }
-
-    async function applyMove(move /* {r,c} or null */){
-      if (state.busy) return;
-      state.busy = true;
-
-      // 反転リスト（演出用）：手を指す前の盤を参照
-      let flips = [];
-      if (move){
-        flips = flipsFor(state.board, state.current, move.r, move.c);
-      }
-
-      // エンジンに状態遷移を委譲
-      const arg = move ? [move.r, move.c] : null;
-      const pyres = engine.step(state.board, state.current, arg);
-      const result = pyres.toJs(); pyres.destroy?.();
-
-      // ヒストリ積む
-      pushHistory();
-
-      state.board   = result.board;
-      state.current = result.next_player;
-      state.lastMove = move ? [move.r, move.c] : null;
-
-      render(flips);
-
-      if (result.game_over){
-        showOverlay();
-      }
-      state.busy = false;
-    }
-
-    function onCellClick(r,c){
-      // 合法手チェック（ヒントと同じ基準）
-      const ms = legalMoves(state.board, state.current);
-      const ok = ms.some(([rr,cc])=>rr===r && cc===c);
-      if (!ok) return;
-      applyMove({r,c});
-    }
-
-    function onPassClick(){ applyMove(null); }
-
-    function hookUI(){
-      document.getElementById("passBtn").addEventListener("click", onPassClick);
-      document.getElementById("resetBtn").addEventListener("click", resetGame);
-      document.getElementById("hardReset").addEventListener("click", ()=>{ hideOverlay(); resetGame(); });
-      document.getElementById("playAgain").addEventListener("click", ()=>{ hideOverlay(); resetGame(); });
-      document.getElementById("undoBtn").addEventListener("click", undo);
-      document.getElementById("redoBtn").addEventListener("click", redo);
-      document.getElementById("hintToggle").addEventListener("change", ()=>render());
-      document.getElementById("animToggle").addEventListener("change", ()=>render());
-    }
-
-    function resetGame(){
-      state.history.length = 0; state.future.length = 0; state.lastMove = null;
-      const init = engine.init_state(); const [board,current] = init.toJs(); init.destroy?.();
-      state.board = board; state.current = current;
-      render();
-    }
-
-    // 起動
-    boot();
-  </script>
+  <!-- Python 起動 -->
+  <py-script src="./src/main.py"></py-script>
 </body>
 </html>
