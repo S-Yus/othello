@@ -2,7 +2,7 @@
 from js import console
 from src.game import Game
 from src.ui import UI
-import asyncio
+import asyncio, traceback
 
 def boot():
     try:
@@ -13,8 +13,6 @@ def boot():
         console.log("[Othello] Boot OK")
     except Exception as e:
         console.error("[Othello] Boot FAILED:", e)
-        # 例外の詳細（スタックトレース）も吐く
-        import traceback
         console.error(traceback.format_exc())
 
 boot()
