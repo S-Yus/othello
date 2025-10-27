@@ -1,114 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Othello – PyScript Edition</title>
-  <link rel="stylesheet" href="/othello/styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#2f7d32" />
+  <title>Reversi</title>
+  <link rel="apple-touch-icon" href="reversi_icon_2.jpg">
 
-  <!-- PyScript 本体 -->
-  <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
-  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+  <base href="./">
 
-  <!-- PyScript 設定（JSON形式） -->
-  <script type="py-config">
-  {
-    "packages": ["numpy"],
-    "fetch": [
-      { "files": [
-        "/othello/src/__init__.py",
-        "/othello/src/game.py",
-        "/othello/src/ai.py",
-        "/othello/src/ui.py",
-        "/othello/src/main.py"
-      ]}
+  <!-- 内蔵ファビコン -->
+  <link rel="icon" type="image/svg+xml"
+        href='data:image/svg+xml;utf8,
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+          <rect width="64" height="64" rx="12" ry="12" fill="%232f7d32"/>
+          <circle cx="22" cy="32" r="14" fill="%230e0f11"/>
+          <circle cx="42" cy="32" r="14" fill="%23e9eef3" stroke="%230e0f11" stroke-width="1"/>
+        </svg>'>
+
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.9.2/core.css" />
+  <script type="module" src="https://pyscript.net/releases/2024.9.2/core.js"></script>
+
+  <link rel="stylesheet" href="./styles.css" />
+
+  <py-config>
+    packages = ["numpy"]
+    [[fetch]]
+    files = [
+      "src/__init__.py",
+      "src/main.py",
+      "src/game.py",
+      "src/ui.py",
+      "src/ai.py"
     ]
-  }
-  </script>
+  </py-config>
 </head>
 <body>
   <header class="topbar">
-    <h1>Othello</h1>
+    <h1>Reversi</h1>
     <div class="badges">
       <span class="badge">PyScript</span>
-      <span class="badge">AI</span>
+      <span class="badge">Alpha–Beta + TT</span>
     </div>
   </header>
 
   <main class="layout">
     <section class="board-wrap">
-      <!-- 評価バー（ui.py のIDと一致） -->
-      <div class="evalbar" aria-hidden="true">
+      <!-- ★ 評価バー（白/黒2色、ラベル文字なし） -->
+      <div class="evalbar">
         <div id="evalFill"></div>
         <div class="evallabels">
-          <div class="label top"><span class="count white" id="whiteCount">2</span></div>
-          <div class="label bottom"><span class="count black" id="blackCount">2</span></div>
+          <div class="label top">
+            <span id="whiteCount" class="count white">2</span>
+          </div>
+          <div class="label bottom">
+            <span id="blackCount" class="count black">2</span>
+          </div>
         </div>
       </div>
 
-      <!-- 盤（ui.py が中に button.cell を64個生成する） -->
+      <!-- 盤＋オーバーレイ -->
       <div class="board-box">
-        <div id="board" class="board" role="grid" aria-label="Othello board"></div>
-
-        <!-- オーバーレイ（内容は ui.py が注入） -->
+        <div id="board" class="board" aria-label="Othello board"></div>
         <div id="overlay" class="overlay hidden" aria-live="polite">
           <div class="overlay-card" id="overlayContent"></div>
         </div>
       </div>
     </section>
 
+    <!-- 右側UI（既存のまま） -->
     <aside class="side">
-      <div class="status" id="status">手番：—｜石数 B 2 - W 2｜モード：—</div>
+      <div id="status" class="status" role="status" aria-live="polite">Loading…</div>
 
       <div class="card">
         <div class="row">
-          <label>モード</label>
+          <label for="modeSelect">対戦モード</label>
           <select id="modeSelect">
-            <option value="PVP">2人</option>
-            <option value="AI_WHITE" selected>vs AI（白）</option>
-            <option value="AI_BLACK">vs AI（黒）</option>
-            <option value="AI_VS_AI">AI vs AI</option>
+            <option value="PVP">ローカル対戦（2人）</option>
+            <option value="AI_WHITE" selected>vs AI（白＝後手）</option>
+            <option value="AI_BLACK">vs AI（黒＝先手）</option>
+            <option value="AI_VS_AI">AI vs AI（観戦）</option>
           </select>
         </div>
+
         <div class="row">
-          <label>探索深さ</label>
+          <label for="depthSelect">思考の深さ</label>
           <select id="depthSelect">
-            <option>1</option><option>2</option><option selected>3</option>
-            <option>4</option><option>5</option><option>6</option><option>7</option>
+            <option>2</option>
+            <option>3</option>
+            <option selected>4</option>
+            <option>5</option>
+            <option>6</option>
           </select>
         </div>
+
         <div class="row">
-          <label>AI遅延</label>
-          <input id="delayRange" type="range" min="0" max="1500" step="50" value="300" />
-          <span id="delayValue">300ms</span>
+          <label for="delayRange">AI手の遅延</label>
+          <input id="delayRange" type="range" min="0" max="1000" step="50" value="350">
+          <span id="delayValue">350ms</span>
         </div>
-        <div class="toggles">
-          <label><input type="checkbox" id="hintsToggle" checked> 合法手ハイライト</label>
-          <label><input type="checkbox" id="autosaveToggle" checked> 自動保存</label>
+
+        <div class="row toggles">
+          <label><input id="hintsToggle" type="checkbox" checked> 合法手のヒント</label>
+          <label><input id="autosaveToggle" type="checkbox" checked> 自動保存</label>
         </div>
+
         <div class="buttons">
-          <button id="hintBtn">ヒント</button>
-          <button id="passBtn">パス</button>
-          <button id="resetBtn" class="danger">リセット</button>
+          <button id="hintBtn" title="最善手を表示（H）">Hint</button>
+          <button id="undoBtn" title="1手戻る（U）" disabled>Undo</button>
+          <button id="redoBtn" title="やり直し（Y）" disabled>Redo</button>
+          <button id="passBtn" title="パス（P）">Pass</button>
+          <button id="resetBtn" class="danger" title="新局（N）">New</button>
         </div>
+
+        <p class="help">
+          キーボードショートカット：
+          <code>U</code>=Undo / <code>Y</code>=Redo /
+          <code>P</code>=Pass / <code>N</code>=New / <code>H</code>=Hint
+        </p>
       </div>
 
       <div class="card">
-        <strong>着手履歴</strong>
-        <ol class="moves" id="movesList"></ol>
-        <div class="moves-actions">
-          <button id="undoBtn" disabled>戻る</button>
-          <button id="redoBtn" disabled>進む</button>
-          <button id="copyMovesBtn">コピー</button>
-          <button id="clearMovesBtn">クリア</button>
+        <div class="row spread">
+          <strong>手順表</strong>
+          <div class="moves-actions">
+            <button id="copyMovesBtn" title="手順をコピー">Copy</button>
+            <button id="clearMovesBtn" title="手順をクリア">Clear</button>
+          </div>
         </div>
+        <ol id="movesList" class="moves"></ol>
       </div>
-
-      <div class="foot">© Othello</div>
     </aside>
   </main>
 
-  <!-- Python 起動 -->
-  <py-script src="/othello/src/main.py"></py-script>
+  <footer class="foot">
+    <small>All rights belong to S-Yus.</small>
+  </footer>
+
+  <py-script src="src/main.py"></py-script>
 </body>
 </html>

@@ -19,15 +19,14 @@ def coord_to_notation(x:int,y:int)->str:
 
 def notation_to_coord(s:str)->Coord:
     s = s.strip().upper()
-    if len(s) < 2 or not ('A' <= s[0] <= 'H') or not s[1:].isdigit():
-        raise ValueError(f"Invalid notation: {s}")
     x = ord(s[0]) - ord('A')
-    y = int(s[1:]) - 1
-    if not onboard(x,y):
-        raise ValueError(f"Out of board: {s}")
+    y = int(s[1]) - 1
     return (x,y)
 
 class Game:
+    """
+    ルール・局面管理。Undo/Redo、手順、保存用スナップショット。
+    """
     def __init__(self, mode: str = "AI_WHITE"):
         self.mode: str = mode
         self.board: np.ndarray = self._init_board()
@@ -37,10 +36,6 @@ class Game:
         self.future: List[Dict[str,Any]] = []
         self.move_history: List[str] = []
         self.last_move: Optional[Coord] = None
-
-        # フリップアニメ用
-        self.last_flips: List[Coord] = []
-        self.last_player: Optional[int] = None
 
     # --- 基本 ---
     def _init_board(self) -> np.ndarray:
@@ -57,9 +52,8 @@ class Game:
         self.future.clear()
         self.move_history.clear()
         self.last_move = None
-        self.last_flips = []
-        self.last_player = None
 
+    # --- スナップショット ---
     def snapshot(self) -> Dict[str,Any]:
         return {
             "board": self.board.copy(),
@@ -68,8 +62,6 @@ class Game:
             "pass_streak": self.pass_streak,
             "move_history": list(self.move_history),
             "last_move": None if self.last_move is None else tuple(self.last_move),
-            "last_flips": [tuple(rc) for rc in self.last_flips],
-            "last_player": self.last_player,
         }
 
     def restore(self, snap: Dict[str,Any]):
@@ -79,8 +71,6 @@ class Game:
         self.pass_streak = snap["pass_streak"]
         self.move_history = list(snap["move_history"])
         self.last_move = None if snap["last_move"] is None else tuple(snap["last_move"])
-        self.last_flips = [tuple(rc) for rc in snap.get("last_flips", [])]
-        self.last_player = snap.get("last_player", None)
 
     # --- Undo/Redo ---
     def can_undo(self)->bool: return len(self.history) > 0
@@ -126,22 +116,6 @@ class Game:
                         break
         return moves
 
-    @staticmethod
-    def flips_for(board: np.ndarray, x:int, y:int, player:int) -> List[Coord]:
-        if not onboard(x,y) or board[y,x] != EMPTY:
-            return []
-        opp = -player
-        flips: List[Coord] = []
-        for dx,dy in DIRS:
-            nx,ny = x+dx, y+dy
-            path: List[Coord] = []
-            while onboard(nx,ny) and board[ny,nx] == opp:
-                path.append((nx,ny))
-                nx += dx; ny += dy
-            if path and onboard(nx,ny) and board[ny,nx] == player:
-                flips.extend(path)
-        return flips
-
     def get_legal_moves(self)->List[Coord]:
         return Game.legal_moves(self.board, self.current_player)
 
@@ -150,46 +124,47 @@ class Game:
     def apply_move(board: np.ndarray, x:int, y:int, player:int) -> np.ndarray:
         out = board.copy()
         out[y,x] = player
-        flips = Game.flips_for(board, x, y, player)
-        for fx,fy in flips:
-            out[fy,fx] = player
+        opp = -player
+        for dx,dy in DIRS:
+            nx,ny = x+dx, y+dy
+            flips = []
+            while onboard(nx,ny) and out[ny,nx] == opp:
+                flips.append((nx,ny)); nx += dx; ny += dy
+            if flips and onboard(nx,ny) and out[ny,nx] == player:
+                for fx,fy in flips:
+                    out[fy,fx] = player
         return out
 
     def make_move(self, x:int, y:int) -> bool:
         moves = self.get_legal_moves()
         if (x,y) not in moves: return False
         self.history.append(self.snapshot()); self.future.clear()
-
-        flips = Game.flips_for(self.board, x, y, self.current_player)
-
         self.board = Game.apply_move(self.board, x, y, self.current_player)
         self.last_move = (x,y)
-        self.last_flips = flips
-        self.last_player = self.current_player
-
         self.move_history.append(coord_to_notation(x,y))
         self.current_player *= -1
         self.pass_streak = 0
         return True
 
     def pass_turn(self) -> bool:
+        """合法手が無いときだけパスを許可。成功時 True を返す。"""
         if self.get_legal_moves():
-            return False
+            return False  # ← ここが重要：打てるならパス不可
         self.history.append(self.snapshot()); self.future.clear()
         self.move_history.append("pass")
         self.current_player *= -1
         self.pass_streak += 1
-        self.last_move = None
-        self.last_flips = []
-        self.last_player = None
         return True
 
     # --- 終局・スコア ---
     def is_game_over(self)->bool:
+        # 盤が埋まった
         if (self.board == EMPTY).sum() == 0:
             return True
+        # 双方打てない
         if len(Game.legal_moves(self.board, BLACK)) == 0 and len(Game.legal_moves(self.board, WHITE)) == 0:
             return True
+        # ※ pass_streak>=2 は、上の条件と等価になるため（パスを厳密運用すれば）不要
         return False
 
     def score(self)->Dict[str,int]:
@@ -206,8 +181,6 @@ class Game:
             "board": self.board.astype(int).tolist(),
             "move_history": list(self.move_history),
             "last_move": None if self.last_move is None else list(self.last_move),
-            "last_flips": [list(rc) for rc in self.last_flips],
-            "last_player": self.last_player,
         }
 
     def load_dict(self, d:Dict[str,Any]):
@@ -218,6 +191,4 @@ class Game:
         self.move_history = list(d.get("move_history", []))
         lm = d.get("last_move", None)
         self.last_move = None if lm is None else (int(lm[0]), int(lm[1]))
-        self.last_flips = [tuple(map(int, rc)) for rc in d.get("last_flips", [])]
-        self.last_player = d.get("last_player", None)
         self.history.clear(); self.future.clear()

@@ -1,7 +1,7 @@
 import time, math
 import numpy as np
 from typing import Optional, Tuple, Dict, Any, List
-from src.game import Game, BLACK, WHITE, EMPTY
+from src.game import Game, BLACK, WHITE, EMPTY  # ← 相対ではなく絶対に変更
 
 W = np.array([
     [120,-20, 20,  5,  5, 20,-20,120],
@@ -16,12 +16,6 @@ W = np.array([
 
 CORNERS = {(0,0),(7,0),(0,7),(7,7)}
 ADJ_CORNERS = {(1,0),(0,1),(6,0),(7,1),(0,6),(1,7),(6,7),(7,6)}
-ADJ_BY_CORNER = {
-    (0,0): [(1,0),(0,1),(1,1)],
-    (7,0): [(6,0),(7,1),(6,1)],
-    (0,7): [(0,6),(1,7),(1,6)],
-    (7,7): [(6,7),(7,6),(6,6)],
-}
 
 TT: Dict[Any, Dict[str,Any]] = {}
 
@@ -51,7 +45,7 @@ def stable_frontier_penalty(board: np.ndarray, player:int)->int:
 def evaluate(board: np.ndarray, player: int) -> float:
     opp = -player
     empties = (board == EMPTY).sum()
-    posv = int((board.astype(np.int16) * W).sum(dtype=np.int32)) * (1 if player==BLACK else -1)
+    posv = int((board * W).sum()) * (1 if player==BLACK else -1)
 
     corner = 0
     for (x,y) in CORNERS:
@@ -59,12 +53,9 @@ def evaluate(board: np.ndarray, player: int) -> float:
         elif board[y,x]==opp:  corner -= 1
 
     danger = 0.0
-    for (cx,cy), adjlist in ADJ_BY_CORNER.items():
-        cstone = board[cy,cx]
-        if cstone == EMPTY:
-            for (x,y) in adjlist:
-                if board[y,x]==player: danger -= 0.5
-                elif board[y,x]==opp:  danger += 0.5
+    for (x,y) in ADJ_CORNERS:
+        if board[y,x]==player: danger -= 0.5
+        elif board[y,x]==opp:  danger += 0.5
 
     mob = len(Game.legal_moves(board, player)) - len(Game.legal_moves(board, opp))
     frontier = stable_frontier_penalty(board, player)
@@ -106,13 +97,7 @@ def search(board: np.ndarray, player:int, depth:int,
         if alpha >= beta: return val
 
     legal = Game.legal_moves(board, player)
-    opp_legal = Game.legal_moves(board, -player)
-
-    if not legal and not opp_legal:
-        exact = int((board == player).sum()) - int((board == -player).sum())
-        return float(exact)
-
-    if depth <= 0:
+    if depth <= 0 or (not legal and not Game.legal_moves(board, -player)):
         return evaluate(board, player)
 
     if not legal:
@@ -160,7 +145,7 @@ def choose_move(board: np.ndarray, player:int, depth:int,
     try:
         for d in range(1, depth+1):
             out_best["root_depth"] = d
-            _ = search(board, player, d, -math.inf, math.inf, start, time_limit, out_best)
+            val = search(board, player, d, -math.inf, math.inf, start, time_limit, out_best)
             if out_best.get("move") is not None:
                 best = out_best["move"]
             if time_limit is not None and (time.monotonic() - start) > time_limit:
