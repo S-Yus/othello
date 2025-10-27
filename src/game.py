@@ -9,7 +9,7 @@ DIRS = [(-1,-1), (0,-1), (1,-1),
         (-1, 0),         (1, 0),
         (-1, 1), (0, 1), (1, 1)]
 
-Coord = Tuple[int, int]  # (x, y) with 0<=x,y<8
+Coord = Tuple[int, int]
 
 def onboard(x:int, y:int)->bool:
     return 0 <= x < 8 and 0 <= y < 8
@@ -24,9 +24,6 @@ def notation_to_coord(s:str)->Coord:
     return (x,y)
 
 class Game:
-    """
-    ルール・局面管理。Undo/Redo、手順、保存用スナップショット。
-    """
     def __init__(self, mode: str = "AI_WHITE"):
         self.mode: str = mode
         self.board: np.ndarray = self._init_board()
@@ -37,7 +34,6 @@ class Game:
         self.move_history: List[str] = []
         self.last_move: Optional[Coord] = None
 
-    # --- 基本 ---
     def _init_board(self) -> np.ndarray:
         b = np.zeros((8,8), dtype=np.int8)
         b[3,3] = WHITE; b[4,4] = WHITE
@@ -53,7 +49,6 @@ class Game:
         self.move_history.clear()
         self.last_move = None
 
-    # --- スナップショット ---
     def snapshot(self) -> Dict[str,Any]:
         return {
             "board": self.board.copy(),
@@ -72,7 +67,6 @@ class Game:
         self.move_history = list(snap["move_history"])
         self.last_move = None if snap["last_move"] is None else tuple(snap["last_move"])
 
-    # --- Undo/Redo ---
     def can_undo(self)->bool: return len(self.history) > 0
     def can_redo(self)->bool: return len(self.future) > 0
 
@@ -98,7 +92,6 @@ class Game:
             ok = True
         return ok
 
-    # --- 合法手 ---
     @staticmethod
     def legal_moves(board: np.ndarray, player: int) -> List[Coord]:
         opp = -player
@@ -119,7 +112,6 @@ class Game:
     def get_legal_moves(self)->List[Coord]:
         return Game.legal_moves(self.board, self.current_player)
 
-    # --- 着手適用 ---
     @staticmethod
     def apply_move(board: np.ndarray, x:int, y:int, player:int) -> np.ndarray:
         out = board.copy()
@@ -149,14 +141,13 @@ class Game:
     def pass_turn(self) -> bool:
         """合法手が無いときだけパスを許可。成功時 True を返す。"""
         if self.get_legal_moves():
-            return False  # ← ここが重要：打てるならパス不可
+            return False  #打てるならパス不可
         self.history.append(self.snapshot()); self.future.clear()
         self.move_history.append("pass")
         self.current_player *= -1
         self.pass_streak += 1
         return True
 
-    # --- 終局・スコア ---
     def is_game_over(self)->bool:
         # 盤が埋まった
         if (self.board == EMPTY).sum() == 0:
@@ -164,7 +155,6 @@ class Game:
         # 双方打てない
         if len(Game.legal_moves(self.board, BLACK)) == 0 and len(Game.legal_moves(self.board, WHITE)) == 0:
             return True
-        # ※ pass_streak>=2 は、上の条件と等価になるため（パスを厳密運用すれば）不要
         return False
 
     def score(self)->Dict[str,int]:
@@ -172,7 +162,6 @@ class Game:
         w = int((self.board == WHITE).sum())
         return {"black": b, "white": w}
 
-    # --- 永続化 ---
     def to_dict(self)->Dict[str,Any]:
         return {
             "mode": self.mode,

@@ -2,7 +2,7 @@ from src.game import Game
 from src.ui import UI
 
 # 起動
-game = Game(mode="AI_WHITE")  # 初期モードは必要に応じて変更
+game = Game(mode="AI_WHITE")
 ui = UI(game)
 ui.render()
 

@@ -1,7 +1,7 @@
 import time, math
 import numpy as np
 from typing import Optional, Tuple, Dict, Any, List
-from src.game import Game, BLACK, WHITE, EMPTY  # ← 相対ではなく絶対に変更
+from src.game import Game, BLACK, WHITE, EMPTY
 
 W = np.array([
     [120,-20, 20,  5,  5, 20,-20,120],
