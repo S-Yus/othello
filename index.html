@@ -4,28 +4,27 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Othello – PyScript Edition</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/othello/styles.css" />
 
-  <!-- PyScript -->
-<link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
-<script defer src="https://pyscript.net/latest/pyscript.js"></script>
+  <!-- PyScript 本体 -->
+  <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
+  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
 
-<!-- PyScript config -->
-<script type="py-config">
-{
-  "packages": ["numpy"],
-  "fetch": [
-    { "files": [
-        "./src/__init__.py",
-        "./src/game.py",
-        "./src/ai.py",
-        "./src/ui.py",
-        "./src/main.py"
-    ]}
-  ]
-}
-</script>
-
+  <!-- PyScript 設定（JSON形式） -->
+  <script type="py-config">
+  {
+    "packages": ["numpy"],
+    "fetch": [
+      { "files": [
+        "/othello/src/__init__.py",
+        "/othello/src/game.py",
+        "/othello/src/ai.py",
+        "/othello/src/ui.py",
+        "/othello/src/main.py"
+      ]}
+    ]
+  }
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -38,7 +37,7 @@
 
   <main class="layout">
     <section class="board-wrap">
-      <!-- 評価バー（ui.pyに合わせたID） -->
+      <!-- 評価バー（ui.py のIDと一致） -->
       <div class="evalbar" aria-hidden="true">
         <div id="evalFill"></div>
         <div class="evallabels">
@@ -47,11 +46,11 @@
         </div>
       </div>
 
-      <!-- 盤は ui.py が中に button.cell を生成 -->
+      <!-- 盤（ui.py が中に button.cell を64個生成する） -->
       <div class="board-box">
         <div id="board" class="board" role="grid" aria-label="Othello board"></div>
 
-        <!-- オーバーレイ（ui.py が中身を書き換える） -->
+        <!-- オーバーレイ（内容は ui.py が注入） -->
         <div id="overlay" class="overlay hidden" aria-live="polite">
           <div class="overlay-card" id="overlayContent"></div>
         </div>
@@ -74,7 +73,8 @@
         <div class="row">
           <label>探索深さ</label>
           <select id="depthSelect">
-            <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option>
+            <option>1</option><option>2</option><option selected>3</option>
+            <option>4</option><option>5</option><option>6</option><option>7</option>
           </select>
         </div>
         <div class="row">
@@ -109,6 +109,6 @@
   </main>
 
   <!-- Python 起動 -->
-  <py-script src="./src/main.py"></py-script>
+  <py-script src="/othello/src/main.py"></py-script>
 </body>
 </html>

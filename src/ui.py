@@ -62,6 +62,11 @@ class UI:
         self._try_restore()
         self._sync_controls_from_state()
 
+        # ★初回描画（最初の4石やステータスを表示）
+        self.render()
+        # 片側AI/AI vs AI の場合、先手がAIなら初手思考へ
+        asyncio.ensure_future(self._step_ai_loop(force=True))
+
     # -------------------------------------------------------------------------
     # 安全装置：必要なDOMが無いとき即座に原因を出す
     # -------------------------------------------------------------------------
@@ -99,6 +104,10 @@ class UI:
     #  - ホバー/フォーカスでプレビュー石（PC向け）
     # -------------------------------------------------------------------------
     def _init_board_dom(self):
+        # 既存クリア（再初期化時の二重追加防止）
+        while self.board_el.firstChild:
+            self.board_el.removeChild(self.board_el.firstChild)
+
         for y in range(8):
             for x in range(8):
                 btn = document.createElement("button")
@@ -129,9 +138,12 @@ class UI:
                 btn.addEventListener("pointerleave", create_proxy(on_leave))
 
                 self.board_el.appendChild(btn)
+
         console.log("[Othello] cells:", self.board_el.children.length)
-    if self.board_el.children.length != 64:
-        console.error("[Othello] cell build failed")
+        # ★ここはメソッド内（インデント修正）。64でなければCSS/DOMを疑う
+        if self.board_el.children.length != 64:
+            console.error("[Othello] cell build failed (expected 64)")
+
     # -------------------------------------------------------------------------
     # イベント束ね
     # -------------------------------------------------------------------------
